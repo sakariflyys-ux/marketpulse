@@ -1,0 +1,38 @@
+{
+  "name": "@marketpulse/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./load-env": "./src/load-env.ts"
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:reset": "prisma migrate reset --force",
+    "studio": "prisma studio",
+    "seed": "tsx src/seed.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "pg": "^8.23.0",
+    "dotenv": "^17.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@faker-js/faker": "^10.6.0",
+    "@types/node": "^22.19.0",
+    "@types/pg": "^8.23.1",
+    "eslint": "^9.39.5",
+    "prisma": "7.10.0",
+    "tsx": "^4.23.13",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.69.0"
+  }
+}

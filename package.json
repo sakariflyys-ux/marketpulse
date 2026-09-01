@@ -1,0 +1,42 @@
+{
+  "name": "marketpulse",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css,yml,yaml}\"",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @marketpulse/db generate",
+    "db:migrate": "pnpm --filter @marketpulse/db migrate:dev",
+    "db:deploy": "pnpm --filter @marketpulse/db migrate:deploy",
+    "db:reset": "pnpm --filter @marketpulse/db migrate:reset",
+    "db:seed": "pnpm --filter @marketpulse/db seed",
+    "db:studio": "pnpm --filter @marketpulse/db studio",
+    "web:dev": "pnpm --filter @marketpulse/web dev",
+    "worker:dev": "pnpm --filter @marketpulse/worker dev",
+    "worker:run-once": "pnpm --filter @marketpulse/worker run-once",
+    "mcp:dev": "pnpm --filter @marketpulse/mcp-server dev"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "turbo": "^2.10.12",
+    "typescript": "6.0.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "unrs-resolver"
+    ]
+  }
+}

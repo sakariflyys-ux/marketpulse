@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+.next/
+out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# prisma generated client
+packages/db/generated/
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs / misc
+npm-debug.log*
+pnpm-debug.log*
+*.log
+.DS_Store
+coverage/
+
+# docker volumes
+pgdata/

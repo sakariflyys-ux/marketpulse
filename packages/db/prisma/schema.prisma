@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (v5) models. Shape follows @auth/prisma-adapter's expectations.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  credits       Int       @default(100)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts   Account[]
+  sessions   Session[]
+  folders    Folder[]
+  savedItems SavedItem[]
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Domain models
+// ---------------------------------------------------------------------------
+
+model Store {
+  id             String    @id @default(cuid())
+  shopifyDomain  String    @unique
+  name           String
+  description    String?
+  logo           String?
+  category       String
+  monthlyRevenue Float
+  monthlyTraffic Int
+  topProduct     Json?
+  techStack      Json?
+  lastScrapedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Generated tsvector over name + description. Prisma can't express
+  // `GENERATED ALWAYS AS (...) STORED`, so the column is declared here as
+  // Unsupported (keeps migrate diffing honest) and the generation expression
+  // lives in the hand-written migration `*_fulltext_search`.
+  searchVector Unsupported("tsvector")?
+
+  snapshots StoreSnapshot[]
+  ads       Ad[]
+
+  @@index([monthlyRevenue])
+  @@index([category])
+  @@index([searchVector], type: Gin)
+}
+
+model StoreSnapshot {
+  id             String   @id @default(cuid())
+  storeId        String
+  monthlyRevenue Float
+  monthlyTraffic Int
+  capturedAt     DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, capturedAt])
+}
+
+enum AdPlatform {
+  META
+  TIKTOK
+  GOOGLE
+}
+
+model Ad {
+  id             String     @id @default(cuid())
+  platform       AdPlatform
+  creativeUrl    String
+  headline       String
+  bodyText       String
+  cta            String
+  spendEstimate  Float
+  impressions    Int
+  engagementRate Float
+  targetAudience Json?
+  storeId        String
+  createdAt      DateTime   @default(now())
+
+  // See Store.searchVector — same approach, over headline + bodyText.
+  searchVector Unsupported("tsvector")?
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([platform])
+  @@index([engagementRate])
+  @@index([searchVector], type: Gin)
+}
+
+// ---------------------------------------------------------------------------
+// Folders & saved items
+// ---------------------------------------------------------------------------
+
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent     Folder?     @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children   Folder[]    @relation("FolderTree")
+  savedItems SavedItem[]
+
+  @@unique([userId, parentId, name])
+  @@index([userId])
+}
+
+enum SavedItemType {
+  STORE
+  AD
+}
+
+model SavedItem {
+  id        String        @id @default(cuid())
+  userId    String
+  folderId  String
+  itemType  SavedItemType
+  itemId    String
+  notes     String?
+  createdAt DateTime      @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, folderId, itemType, itemId])
+  @@index([userId])
+}
