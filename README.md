@@ -102,6 +102,14 @@ pnpm db:seed          # SEED_SCALE=large for a realistic dataset
 
 `packages/db/src/cache.ts` is a read-through Redis cache (5-minute TTL) wrapped around every repository method by `withCache`. With `REDIS_URL` unset, or Redis unreachable, it is a passthrough. Keys are namespaced and versioned (`mp:<ns>:v<n>:<method>:<args>`); `cache.invalidate("stores", "ads")` bumps the version instead of scanning keys, which is what the worker will call after writing snapshots.
 
+## UI
+
+- **Discover** (`/discover`): trending store cards (logo, revenue, traffic, tech stack, 7-day growth) with infinite scroll on cursor pagination. `?q=` switches to full-text search ranked by relevance; `?category=` filters. Filters live in the URL so views are shareable.
+- **Ad Library** (`/ads`): filterable table (search, platform, minimum engagement, sort) with "Load more" pagination. Clicking a row opens a detail modal with the creative, copy, metrics and target audience. `?storeId=` scopes it to one store.
+- **Store detail** (`/store/[domain]`): stats, a Recharts revenue-over-time line built from `StoreSnapshot`, top product, tech stack, and the store's most recent ads. The "Save to folder" button is wired in Phase 4.
+
+Pages render the first page on the server through the repositories and hand it to a client component, which fetches subsequent pages from the JSON API. Every list has a loading skeleton and an empty state.
+
 ## API
 
 All routes validate query params with Zod and return errors as `{ error: { code, message, details? } }` with the right status (400 `VALIDATION_ERROR` / `INVALID_CURSOR`, 404 `NOT_FOUND`, 500 `INTERNAL_ERROR`).
@@ -151,7 +159,7 @@ The Claude Desktop config snippet will be added here when the server ships:
 
 1. **Foundation & Auth** — monorepo, DB, seed, auth, app shell, dashboard ✅
 2. **Repositories & API** — repository pattern, FTS, cursor-paginated `/api/stores` + `/api/ads`, Redis cache ✅
-3. Discovery UI (`/discover`, `/ads`, `/store/[domain]`)
+3. **Discovery UI** — `/discover`, `/ads`, `/store/[domain]` ✅
 4. Folders & saved items
 5. MCP server & `/chat`
 6. Worker, cache invalidation, rate limiting
