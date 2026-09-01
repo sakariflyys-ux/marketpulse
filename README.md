@@ -72,9 +72,52 @@ Each auth provider turns on only when its full pair of variables is set.
 - Full-text search: `Store.searchVector` (name + description) and `Ad.searchVector` (headline + bodyText) are `GENERATED ALWAYS AS ... STORED` `tsvector` columns with GIN indexes. Prisma cannot express generated columns, so they are declared as `Unsupported("tsvector")` in the schema (keeps `migrate diff` honest) and the expression lives in the hand-written migration `packages/db/prisma/migrations/*_fulltext_search`. Query with `websearch_to_tsquery('english', $q)`.
 - Seeding is idempotent (truncates `Store` with cascade, then bulk-inserts with `createMany` in batches). Faker is seeded, so the dataset is deterministic. Every store gets 30 daily `StoreSnapshot` rows with a per-store trend plus noise so growth rankings are meaningful. `SEED_SCALE=large` (10k stores / 50k ads / 300k snapshots) takes under a minute locally.
 
-## Running without Docker
+## Running without Docker (Neon / Supabase)
 
-Point `DATABASE_URL` at any Postgres 16+ instance and skip `pnpm db:up`.
+Point `DATABASE_URL` at any Postgres 16+ instance and skip `pnpm db:up`:
+
+```bash
+# .env
+DATABASE_URL="postgresql://<user>:<password>@<host>/<db>?sslmode=require"
+pnpm db:deploy        # apply migrations (no shadow DB needed)
+pnpm db:seed          # SEED_SCALE=large for a realistic dataset
+```
+
+## Data access
+
+### Repository pattern
+
+`packages/db/src/repositories/` abstracts the **data source** (mock vs. real APIs), not the database:
+
+- `StoreRepository` / `AdRepository` — interfaces (`list`, `trending`, `getByDomain`, `categories`, `getById`).
+- `mock/Mock*Repository` — read the Faker-seeded Postgres tables. Raw SQL is used where Prisma can't express tsvector search, `ts_rank` ordering or window functions.
+- `index.ts` — the single swap point. `getRepositories()` builds the implementations selected by `DATA_SOURCE` and wraps them in the cache. Adding `ShopifyStoreRepository` later is a one-line change here.
+
+### Pagination and search
+
+- Cursor pagination everywhere: `{ data, nextCursor }`. Cursors are opaque (base64url JSON). List endpoints use keyset cursors on `(sortValue, id)`; trending uses an offset cursor because its ranking is computed over a window.
+- Full-text search via the generated `searchVector` columns and `websearch_to_tsquery`, so `q=organic skincare -oil` works. `sort=relevance` orders by `ts_rank` (falls back to revenue/engagement when `q` is empty).
+
+### Cache
+
+`packages/db/src/cache.ts` is a read-through Redis cache (5-minute TTL) wrapped around every repository method by `withCache`. With `REDIS_URL` unset, or Redis unreachable, it is a passthrough. Keys are namespaced and versioned (`mp:<ns>:v<n>:<method>:<args>`); `cache.invalidate("stores", "ads")` bumps the version instead of scanning keys, which is what the worker will call after writing snapshots.
+
+## API
+
+All routes validate query params with Zod and return errors as `{ error: { code, message, details? } }` with the right status (400 `VALIDATION_ERROR` / `INVALID_CURSOR`, 404 `NOT_FOUND`, 500 `INTERNAL_ERROR`).
+
+| Route                      | Params                                                                                                                                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/stores`          | `q`, `category`, `minRevenue`, `maxRevenue`, `minTraffic`, `maxTraffic`, `sort=revenue\|traffic\|newest\|name\|relevance`, `order`, `limit` (≤100), `cursor`                                    |
+| `GET /api/stores/trending` | `category`, `limit`, `cursor` — ranked by revenue growth over the last 7 snapshots, then absolute revenue                                                                                       |
+| `GET /api/stores/:domain`  | Store detail with all snapshots, 20 most recent ads and `adCount`                                                                                                                               |
+| `GET /api/ads`             | `q`, `platform=META\|TIKTOK\|GOOGLE`, `storeId`, `minEngagement`, `maxEngagement`, `minSpend`, `maxSpend`, `sort=engagement\|spend\|impressions\|newest\|relevance`, `order`, `limit`, `cursor` |
+| `GET /api/ads/:id`         | Single ad with its store reference                                                                                                                                                              |
+
+```bash
+curl "http://localhost:3000/api/stores?q=group&sort=relevance&limit=5"
+curl "http://localhost:3000/api/ads?platform=TIKTOK&minEngagement=5&sort=spend"
+```
 
 ## Docker image (web)
 
@@ -107,7 +150,7 @@ The Claude Desktop config snippet will be added here when the server ships:
 ## Roadmap
 
 1. **Foundation & Auth** — monorepo, DB, seed, auth, app shell, dashboard ✅
-2. Repositories & API (`/api/stores`, `/api/ads`, cache layer)
+2. **Repositories & API** — repository pattern, FTS, cursor-paginated `/api/stores` + `/api/ads`, Redis cache ✅
 3. Discovery UI (`/discover`, `/ads`, `/store/[domain]`)
 4. Folders & saved items
 5. MCP server & `/chat`

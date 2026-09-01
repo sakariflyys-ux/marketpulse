@@ -6,7 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
-    "./load-env": "./src/load-env.ts"
+    "./load-env": "./src/load-env.ts",
+    "./repositories": "./src/repositories/index.ts",
+    "./cache": "./src/cache.ts"
   },
   "scripts": {
     "generate": "prisma generate",
@@ -21,8 +23,9 @@
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
-    "pg": "^8.23.0",
-    "dotenv": "^17.0.0"
+    "dotenv": "^17.0.0",
+    "ioredis": "^6.0.0",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
