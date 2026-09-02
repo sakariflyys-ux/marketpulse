@@ -1,5 +1,5 @@
 {
-  "name": "@marketpulse/worker",
+  "name": "@synergilon/worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@marketpulse/db": "workspace:*",
+    "@synergilon/db": "workspace:*",
     "pg-boss": "^12.29.0"
   },
   "devDependencies": {

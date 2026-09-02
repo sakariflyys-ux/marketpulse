@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useDraggable } from "@dnd-kit/core";
 import { Bookmark, FolderInput, GripVertical, Loader2, StickyNote, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import type { SavedItemWithRef } from "@marketpulse/db/services";
+import type { SavedItemWithRef } from "@synergilon/db/services";
 
 import { PlatformBadge } from "@/components/ads/platform-badge";
 import { EmptyState } from "@/components/empty-state";

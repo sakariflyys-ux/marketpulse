@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { deleteSaved, MAX_NOTES, updateSaved } from "@marketpulse/db/services";
+import { deleteSaved, MAX_NOTES, updateSaved } from "@synergilon/db/services";
 
 import { parseBody, withErrorHandling } from "@/lib/api";
 import { requireUserId } from "@/lib/auth-guard";

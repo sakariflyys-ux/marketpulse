@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRepositories } from "@marketpulse/db/repositories";
+import { getRepositories } from "@synergilon/db/repositories";
 
 import { apiError, withErrorHandling } from "@/lib/api";
 import { withRateLimit } from "@/lib/rate-limit";

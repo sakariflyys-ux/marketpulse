@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { FolderNode } from "@marketpulse/db/services";
+import type { FolderNode } from "@synergilon/db/services";
 
 import { Button } from "@/components/ui/button";
 import {

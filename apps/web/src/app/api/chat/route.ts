@@ -1,6 +1,6 @@
 import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { z } from "zod";
-import { marketpulseTools, ToolError, type ToolContext } from "@marketpulse/db/tools";
+import { synergilonTools, ToolError, type ToolContext } from "@synergilon/db/tools";
 
 import { auth } from "@/auth";
 import { ApiError, apiError, withErrorHandling } from "@/lib/api";
@@ -14,7 +14,7 @@ const bodySchema = z.object({
     .max(200),
 });
 
-const SYSTEM_PROMPT = `You are MarketPulse's research assistant. You help e-commerce operators find trending Shopify stores and winning ad creatives using the tools provided; the data is MarketPulse's own index (estimates, not official figures).
+const SYSTEM_PROMPT = `You are Synergilon's research assistant. You help e-commerce operators find trending Shopify stores and winning ad creatives using the tools provided; the data is Synergilon's own index (estimates, not official figures).
 
 Guidelines:
 - Prefer calling a tool over guessing. Chain tools when useful (e.g. find trending stores, then get_store_insights on one).
@@ -48,7 +48,7 @@ export const POST = withErrorHandling(async (request) => {
   const ctx: ToolContext = { userId: session?.user?.id };
 
   const tools = Object.fromEntries(
-    marketpulseTools.map((def) => [
+    synergilonTools.map((def) => [
       def.name,
       tool({
         description: def.description,

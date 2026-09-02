@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, Globe, Megaphone } from "lucide-react";
-import { getRepositories } from "@marketpulse/db/repositories";
+import { getRepositories } from "@synergilon/db/repositories";
 
 import { EmptyState } from "@/components/empty-state";
 import { PlatformBadge } from "@/components/ads/platform-badge";

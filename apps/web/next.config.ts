@@ -10,9 +10,9 @@ loadDotenv({ path: path.resolve(__dirname, "../../.env"), quiet: true });
 const nextConfig: NextConfig = {
   // Standalone output keeps the Docker image small (see apps/web/Dockerfile).
   output: "standalone",
-  // @marketpulse/db is consumed as TypeScript source (no build step), so Next
+  // @synergilon/db is consumed as TypeScript source (no build step), so Next
   // must transpile it. Prisma's generated client and pg stay server-external.
-  transpilePackages: ["@marketpulse/db"],
+  transpilePackages: ["@synergilon/db"],
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"],
   images: {
     remotePatterns: [

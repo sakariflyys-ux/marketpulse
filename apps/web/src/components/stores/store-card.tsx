@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { formatCompact, formatCurrency } from "@/lib/format";
 import type { Serialized } from "@/lib/serialize";
-import type { StoreSummary } from "@marketpulse/db/repositories";
+import type { StoreSummary } from "@synergilon/db/repositories";
 
 import { GrowthIndicator } from "./growth-indicator";
 import { StoreLogo } from "./store-logo";

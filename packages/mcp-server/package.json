@@ -1,5 +1,5 @@
 {
-  "name": "@marketpulse/mcp-server",
+  "name": "@synergilon/mcp-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@marketpulse/db": "workspace:*",
+    "@synergilon/db": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^4.5.4"
   },

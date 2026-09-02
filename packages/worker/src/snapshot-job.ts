@@ -1,5 +1,5 @@
-import { prisma } from "@marketpulse/db";
-import { cache } from "@marketpulse/db/cache";
+import { prisma } from "@synergilon/db";
+import { cache } from "@synergilon/db/cache";
 
 export type SnapshotJobResult = {
   stores: number;

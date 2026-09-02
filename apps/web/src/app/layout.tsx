@@ -11,7 +11,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "MarketPulse", template: "%s · MarketPulse" },
+  title: { default: "Synergilon", template: "%s · Synergilon" },
   description: "Discover trending Shopify stores and winning ad creatives.",
 };
 

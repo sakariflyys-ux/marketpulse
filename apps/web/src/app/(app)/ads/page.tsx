@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { z } from "zod";
-import { getRepositories } from "@marketpulse/db/repositories";
+import { getRepositories } from "@synergilon/db/repositories";
 
 import { AdsFilters } from "@/components/ads/ads-filters";
 import { AdsTable, AdsTableSkeleton } from "@/components/ads/ads-table";

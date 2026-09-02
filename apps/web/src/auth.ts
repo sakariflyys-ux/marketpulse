@@ -5,7 +5,7 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma } from "@marketpulse/db";
+import { prisma } from "@synergilon/db";
 
 import { env } from "@/lib/env";
 
@@ -32,7 +32,7 @@ function buildProviders(): Provider[] {
 
 const providers = buildProviders();
 
-const DEV_SECRET = "marketpulse-dev-secret-do-not-use-in-production";
+const DEV_SECRET = "synergilon-dev-secret-do-not-use-in-production";
 if (!env.AUTH_SECRET && env.NODE_ENV !== "production") {
   console.warn("[auth] AUTH_SECRET is not set; using an insecure development secret.");
 }

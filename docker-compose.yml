@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: marketpulse-db
+    container_name: synergilon-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
@@ -21,7 +21,7 @@ services:
   # Start with: docker compose --profile redis up -d
   redis:
     image: redis:7-alpine
-    container_name: marketpulse-redis
+    container_name: synergilon-redis
     restart: unless-stopped
     profiles: ["redis"]
     ports:

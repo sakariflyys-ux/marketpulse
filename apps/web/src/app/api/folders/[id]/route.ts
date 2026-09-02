@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { deleteFolder, MAX_FOLDER_NAME, updateFolder } from "@marketpulse/db/services";
+import { deleteFolder, MAX_FOLDER_NAME, updateFolder } from "@synergilon/db/services";
 
 import { ApiError, parseBody, withErrorHandling } from "@/lib/api";
 import { requireUserId } from "@/lib/auth-guard";

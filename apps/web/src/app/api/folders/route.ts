@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createFolder, MAX_FOLDER_NAME } from "@marketpulse/db/services";
+import { createFolder, MAX_FOLDER_NAME } from "@synergilon/db/services";
 
 import { parseBody, withErrorHandling } from "@/lib/api";
 import { requireUserId } from "@/lib/auth-guard";

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getRepositories } from "@marketpulse/db/repositories";
+import { getRepositories } from "@synergilon/db/repositories";
 
 import { limitSchema, optionalString, parseQuery, withErrorHandling } from "@/lib/api";
 import { withRateLimit } from "@/lib/rate-limit";

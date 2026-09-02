@@ -1,8 +1,8 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { InvalidCursorError } from "@marketpulse/db/repositories";
-import { ServiceError } from "@marketpulse/db/services";
+import { InvalidCursorError } from "@synergilon/db/repositories";
+import { ServiceError } from "@synergilon/db/services";
 
 /** Error envelope used by every route handler: `{ error: { code, message } }`. */
 export type ApiErrorBody = { error: { code: string; message: string; details?: unknown } };

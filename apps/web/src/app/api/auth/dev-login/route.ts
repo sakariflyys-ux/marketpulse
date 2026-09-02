@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@marketpulse/db";
+import { prisma } from "@synergilon/db";
 
 import { isDevLoginEnabled } from "@/lib/env";
 
-const DEV_EMAIL = "dev@marketpulse.local";
+const DEV_EMAIL = "dev@synergilon.local";
 const SESSION_DAYS = 30;
 
 /**

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getRepositories } from "@marketpulse/db/repositories";
+import { getRepositories } from "@synergilon/db/repositories";
 
 import { PageHeader } from "@/components/page-header";
 import { DiscoverFilters } from "@/components/stores/discover-filters";

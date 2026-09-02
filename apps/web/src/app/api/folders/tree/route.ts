@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getFolderTree } from "@marketpulse/db/services";
+import { getFolderTree } from "@synergilon/db/services";
 
 import { withErrorHandling } from "@/lib/api";
 import { requireUserId } from "@/lib/auth-guard";

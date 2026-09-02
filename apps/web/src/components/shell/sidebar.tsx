@@ -77,12 +77,12 @@ export function Sidebar({ folders }: { folders: FolderTreeNode[] | null }) {
         <Link
           href="/dashboard"
           className="flex items-center gap-2 font-semibold"
-          aria-label="MarketPulse home"
+          aria-label="Synergilon home"
         >
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
             <Activity className="size-4" />
           </span>
-          {!collapsed ? <span className="truncate text-base">MarketPulse</span> : null}
+          {!collapsed ? <span className="truncate text-base">Synergilon</span> : null}
         </Link>
       </div>
       <Separator className="bg-sidebar-border" />

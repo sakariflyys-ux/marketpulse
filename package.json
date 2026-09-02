@@ -1,5 +1,5 @@
 {
-  "name": "marketpulse",
+  "name": "synergilon",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "engines": {
@@ -14,16 +14,16 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css,yml,yaml}\"",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
-    "db:generate": "pnpm --filter @marketpulse/db generate",
-    "db:migrate": "pnpm --filter @marketpulse/db migrate:dev",
-    "db:deploy": "pnpm --filter @marketpulse/db migrate:deploy",
-    "db:reset": "pnpm --filter @marketpulse/db migrate:reset",
-    "db:seed": "pnpm --filter @marketpulse/db seed",
-    "db:studio": "pnpm --filter @marketpulse/db studio",
-    "web:dev": "pnpm --filter @marketpulse/web dev",
-    "worker:dev": "pnpm --filter @marketpulse/worker dev",
-    "worker:run-once": "pnpm --filter @marketpulse/worker run-once",
-    "mcp:dev": "pnpm --filter @marketpulse/mcp-server dev"
+    "db:generate": "pnpm --filter @synergilon/db generate",
+    "db:migrate": "pnpm --filter @synergilon/db migrate:dev",
+    "db:deploy": "pnpm --filter @synergilon/db migrate:deploy",
+    "db:reset": "pnpm --filter @synergilon/db migrate:reset",
+    "db:seed": "pnpm --filter @synergilon/db seed",
+    "db:studio": "pnpm --filter @synergilon/db studio",
+    "web:dev": "pnpm --filter @synergilon/web dev",
+    "worker:dev": "pnpm --filter @synergilon/worker dev",
+    "worker:run-once": "pnpm --filter @synergilon/worker run-once",
+    "mcp:dev": "pnpm --filter @synergilon/mcp-server dev"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

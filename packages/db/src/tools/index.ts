@@ -182,11 +182,11 @@ export const saveToFolder = define({
   },
 });
 
-export const marketpulseTools = [
+export const synergilonTools = [
   searchAds,
   getTrendingStores,
   getStoreInsights,
   saveToFolder,
 ] as const;
 
-export type AnyToolDefinition = (typeof marketpulseTools)[number];
+export type AnyToolDefinition = (typeof synergilonTools)[number];

@@ -1,5 +1,5 @@
 /**
- * MarketPulse worker.
+ * Synergilon worker.
  *
  *   pnpm worker:dev        — daemon: pg-boss schedules the snapshot job
  *                            (SNAPSHOT_CRON, default 03:00 UTC daily) and works it
@@ -8,10 +8,10 @@
  * pg-boss keeps its queue in the same Postgres (schema "pgboss"), so no
  * extra infrastructure is needed.
  */
-import "@marketpulse/db/load-env";
+import "@synergilon/db/load-env";
 import { PgBoss } from "pg-boss";
-import { prisma } from "@marketpulse/db";
-import { cache } from "@marketpulse/db/cache";
+import { prisma } from "@synergilon/db";
+import { cache } from "@synergilon/db/cache";
 import { runSnapshotJob } from "./snapshot-job";
 
 const QUEUE = "store-snapshot";

@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getFolderTree } from "@marketpulse/db/services";
+import { getFolderTree } from "@synergilon/db/services";
 
 import { auth } from "@/auth";
 import { SavedDndProvider } from "@/components/saved/dnd-provider";

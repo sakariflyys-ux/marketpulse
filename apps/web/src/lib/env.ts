@@ -15,7 +15,7 @@ const optionalString = z
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   // Required at runtime, but not at build time (route metadata collection
-  // imports modules without a database). @marketpulse/db throws a clear
+  // imports modules without a database). @synergilon/db throws a clear
   // error on first query if it is missing.
   DATABASE_URL: optionalString,
 

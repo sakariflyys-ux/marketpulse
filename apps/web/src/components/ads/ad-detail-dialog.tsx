@@ -16,7 +16,7 @@ import {
 import { SaveToFolderButton } from "@/components/saved/save-to-folder-dialog";
 import { formatCompact, formatCurrency, formatDate } from "@/lib/format";
 import type { Serialized } from "@/lib/serialize";
-import type { AdSummary } from "@marketpulse/db/repositories";
+import type { AdSummary } from "@synergilon/db/repositories";
 
 import { PlatformBadge } from "./platform-badge";
 

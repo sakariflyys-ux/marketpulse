@@ -1,4 +1,4 @@
-# MarketPulse
+# Synergilon
 
 Market intelligence for Shopify stores and paid-social creatives (a Trendtrack.io-style SaaS). Turborepo monorepo:
 
@@ -25,6 +25,8 @@ pnpm db:seed                    # SEED_SCALE=small -> 100 stores / 500 ads
 pnpm web:dev                    # http://localhost:3000
 ```
 
+> **Database name.** The product was renamed from MarketPulse to Synergilon; the Postgres database in `docker-compose.yml` and `.env.example` is still called `marketpulse` so existing local databases keep working. Rename it in both places if you want a clean slate.
+
 `/` redirects to `/dashboard`. With no auth provider configured, `/login` shows a "no auth providers configured" state and the browsing pages work anonymously. Folders and saved items need a signed-in user: either configure a provider, or keep `AUTH_DEV_LOGIN=true` (the `.env.example` default) and use the **Dev login** button on `/login`, which creates a local user with a real database session. The dev login is disabled in production builds.
 
 ## Scripts (repo root)
@@ -49,7 +51,7 @@ pnpm web:dev                    # http://localhost:3000
 
 ## Environment variables
 
-One `.env` at the repo root is shared by every workspace (`apps/web` loads it from `next.config.ts`, the Node packages via `@marketpulse/db/load-env`). See [`.env.example`](.env.example) for the full documented list.
+One `.env` at the repo root is shared by every workspace (`apps/web` loads it from `next.config.ts`, the Node packages via `@synergilon/db/load-env`). See [`.env.example`](.env.example) for the full documented list.
 
 | Variable                                      | Required | Purpose                                                               |
 | --------------------------------------------- | -------- | --------------------------------------------------------------------- |
@@ -162,12 +164,12 @@ When `REDIS_URL` is set, public API routes (`/api/stores*`, `/api/ads*`) get a f
 ## Docker images
 
 ```bash
-docker build -f apps/web/Dockerfile -t marketpulse-web .
-docker run --rm -p 3000:3000 --env-file .env -e AUTH_TRUST_HOST=true marketpulse-web
+docker build -f apps/web/Dockerfile -t synergilon-web .
+docker run --rm -p 3000:3000 --env-file .env -e AUTH_TRUST_HOST=true synergilon-web
 
-docker build -f packages/worker/Dockerfile -t marketpulse-worker .
-docker run --rm --env-file .env marketpulse-worker           # daemon
-docker run --rm --env-file .env marketpulse-worker --once    # single run
+docker build -f packages/worker/Dockerfile -t synergilon-worker .
+docker run --rm --env-file .env synergilon-worker           # daemon
+docker run --rm --env-file .env synergilon-worker --once    # single run
 # or, against the compose Postgres:
 docker compose --profile worker up -d
 ```
@@ -192,9 +194,9 @@ Both use the **same tool implementations** in `packages/db/src/tools/index.ts` (
 ```json
 {
   "mcpServers": {
-    "marketpulse": {
+    "synergilon": {
       "command": "pnpm",
-      "args": ["--dir", "/absolute/path/to/marketpulse", "mcp:dev"],
+      "args": ["--dir", "/absolute/path/to/synergilon", "mcp:dev"],
       "env": {
         "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/marketpulse",
         "MCP_USER_ID": "<your User.id>"

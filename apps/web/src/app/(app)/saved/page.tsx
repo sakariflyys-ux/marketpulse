@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Folder, LogIn } from "lucide-react";
-import { folderPath, getFolderTree, listSaved, type FolderNode } from "@marketpulse/db/services";
+import { folderPath, getFolderTree, listSaved, type FolderNode } from "@synergilon/db/services";
 
 import { auth } from "@/auth";
 import { EmptyState } from "@/components/empty-state";

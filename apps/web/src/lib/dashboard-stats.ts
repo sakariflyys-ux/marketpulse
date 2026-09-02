@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@marketpulse/db";
+import { prisma } from "@synergilon/db";
 
 export type DashboardStats = {
   stores: number;

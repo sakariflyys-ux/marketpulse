@@ -60,7 +60,7 @@ export function Chat({ model, signedIn }: { model: string; signedIn: boolean }) 
             <div>
               <p className="font-medium">Ask about stores and ads</p>
               <p className="text-sm text-muted-foreground">
-                The assistant searches MarketPulse&apos;s index with the same tools the MCP server
+                The assistant searches Synergilon&apos;s index with the same tools the MCP server
                 exposes.
               </p>
             </div>

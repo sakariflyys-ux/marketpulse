@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@marketpulse/db/cache";
+import { getRedis } from "@synergilon/db/cache";
 
 import { apiError } from "@/lib/api";
 

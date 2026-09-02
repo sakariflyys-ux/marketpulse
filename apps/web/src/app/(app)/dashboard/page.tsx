@@ -154,7 +154,7 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title={firstName ? `Welcome back, ${firstName}` : "Welcome to MarketPulse"}
+        title={firstName ? `Welcome back, ${firstName}` : "Welcome to Synergilon"}
         description="Your market intelligence workspace for Shopify stores and paid social creatives."
       >
         {!session?.user ? (
