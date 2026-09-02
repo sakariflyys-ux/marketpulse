@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 
+import { Missing } from "@/components/missing-value";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +23,7 @@ import { PlatformBadge } from "./platform-badge";
 
 export type AdRowData = Serialized<AdSummary>;
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -46,12 +47,16 @@ export function AdDetailDialog({ ad, onClose }: { ad: AdRowData | null; onClose:
               <DialogTitle className="pr-6 leading-snug">{ad.headline}</DialogTitle>
               <DialogDescription>
                 by{" "}
-                <Link
-                  href={`/store/${encodeURIComponent(ad.store.shopifyDomain)}`}
-                  className="text-foreground underline-offset-4 hover:underline"
-                >
-                  {ad.store.name}
-                </Link>
+                {ad.store ? (
+                  <Link
+                    href={`/store/${encodeURIComponent(ad.store.shopifyDomain)}`}
+                    className="text-foreground underline-offset-4 hover:underline"
+                  >
+                    {ad.store.name}
+                  </Link>
+                ) : (
+                  <span className="text-foreground">{ad.pageName ?? "Unknown advertiser"}</span>
+                )}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-5 sm:grid-cols-[240px_1fr]">
@@ -68,9 +73,40 @@ export function AdDetailDialog({ ad, onClose }: { ad: AdRowData | null; onClose:
               <div className="flex flex-col gap-4">
                 <p className="text-sm leading-relaxed">{ad.bodyText}</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <Stat label="Engagement rate" value={`${ad.engagementRate.toFixed(2)}%`} />
-                  <Stat label="Spend estimate" value={formatCurrency(ad.spendEstimate)} />
-                  <Stat label="Impressions" value={formatCompact(ad.impressions)} />
+                  <Stat
+                    label="Engagement rate"
+                    value={
+                      ad.engagementRate === null ? (
+                        <Missing reason="adMetric" />
+                      ) : (
+                        `${ad.engagementRate.toFixed(2)}%`
+                      )
+                    }
+                  />
+                  <Stat
+                    label="Spend estimate"
+                    value={
+                      ad.spendEstimate === null ? (
+                        <Missing reason="adMetric" />
+                      ) : (
+                        formatCurrency(ad.spendEstimate)
+                      )
+                    }
+                  />
+                  <Stat
+                    label="Impressions"
+                    value={
+                      ad.impressions !== null ? (
+                        formatCompact(ad.impressions)
+                      ) : ad.impressionsLower !== null || ad.impressionsUpper !== null ? (
+                        `${ad.impressionsLower !== null ? formatCompact(ad.impressionsLower) : "?"}–${ad.impressionsUpper !== null ? formatCompact(ad.impressionsUpper) : "?"}`
+                      ) : ad.euTotalReach !== null ? (
+                        `${formatCompact(ad.euTotalReach)} EU reach`
+                      ) : (
+                        <Missing reason="adMetric" />
+                      )
+                    }
+                  />
                   <Stat label="Call to action" value={ad.cta} />
                 </div>
                 {audience ? (
@@ -104,12 +140,14 @@ export function AdDetailDialog({ ad, onClose }: { ad: AdRowData | null; onClose:
                     size="sm"
                     variant="default"
                   />
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/store/${encodeURIComponent(ad.store.shopifyDomain)}`}>
-                      View store
-                      <ExternalLink />
-                    </Link>
-                  </Button>
+                  {ad.store ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/store/${encodeURIComponent(ad.store.shopifyDomain)}`}>
+                        View store
+                        <ExternalLink />
+                      </Link>
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>

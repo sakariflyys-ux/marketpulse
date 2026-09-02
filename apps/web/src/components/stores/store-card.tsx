@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Globe } from "lucide-react";
 
+import { Metric } from "@/components/missing-value";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { formatCompact, formatCurrency } from "@/lib/format";
@@ -35,14 +36,45 @@ export function StoreCard({ store }: { store: StoreCardData }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-3 px-5">
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs text-muted-foreground">Monthly revenue</p>
-              <p className="font-semibold tabular-nums">{formatCurrency(store.monthlyRevenue)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Monthly traffic</p>
-              <p className="font-semibold tabular-nums">{formatCompact(store.monthlyTraffic)}</p>
-            </div>
+            {store.monthlyRevenue !== null ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Monthly revenue</p>
+                <p className="font-semibold tabular-nums">{formatCurrency(store.monthlyRevenue)}</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs text-muted-foreground">Revenue (estimate)</p>
+                <p className="font-semibold tabular-nums">
+                  <Metric
+                    value={store.revenueEstimate}
+                    format={formatCurrency}
+                    reason="storeEstimate"
+                  />
+                  {store.revenueEstimate !== null && store.estimateConfidence ? (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      {store.estimateConfidence} conf.
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+            )}
+            {store.monthlyTraffic !== null ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Monthly traffic</p>
+                <p className="font-semibold tabular-nums">{formatCompact(store.monthlyTraffic)}</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs text-muted-foreground">Products</p>
+                <p className="font-semibold tabular-nums">
+                  <Metric
+                    value={store.productCount}
+                    format={formatCompact}
+                    reason="storeMeasured"
+                  />
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="secondary">{store.category}</Badge>

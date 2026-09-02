@@ -9,7 +9,10 @@ export type SavedStoreRef = {
   shopifyDomain: string;
   logo: string | null;
   category: string;
-  monthlyRevenue: number;
+  monthlyRevenue: number | null;
+  revenueEstimate: number | null;
+  estimateConfidence: string | null;
+  source: string;
 };
 
 export type SavedAdRef = {
@@ -17,9 +20,14 @@ export type SavedAdRef = {
   platform: "META" | "TIKTOK" | "GOOGLE";
   headline: string;
   creativeUrl: string;
-  engagementRate: number;
-  spendEstimate: number;
-  store: { name: string; shopifyDomain: string };
+  engagementRate: number | null;
+  spendEstimate: number | null;
+  source: string;
+  firstSeenAt: Date | null;
+  lastSeenAt: Date | null;
+  active: boolean;
+  pageName: string | null;
+  store: { name: string; shopifyDomain: string } | null;
 };
 
 export type SavedItemRecord = {
@@ -80,6 +88,9 @@ export async function resolveRefs(items: SavedItemRecord[]): Promise<SavedItemWi
             logo: true,
             category: true,
             monthlyRevenue: true,
+            revenueEstimate: true,
+            estimateConfidence: true,
+            source: true,
           },
         })
       : [],
@@ -93,6 +104,11 @@ export async function resolveRefs(items: SavedItemRecord[]): Promise<SavedItemWi
             creativeUrl: true,
             engagementRate: true,
             spendEstimate: true,
+            source: true,
+            firstSeenAt: true,
+            lastSeenAt: true,
+            active: true,
+            pageName: true,
             store: { select: { name: true, shopifyDomain: true } },
           },
         })

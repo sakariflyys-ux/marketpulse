@@ -21,7 +21,7 @@ export function resolveMaxDriftPct(): number {
 }
 
 /**
- * Drifts every store's revenue/traffic by an independent random factor in
+ * Drifts every sample (mock) store's revenue/traffic by an independent random factor in
  * [1 - pct, 1 + pct] and records the new values as a StoreSnapshot.
  *
  * Done as one SQL statement so 10k stores take a single round trip: the
@@ -40,11 +40,14 @@ export async function runSnapshotJob(): Promise<SnapshotJobResult> {
           "monthlyTraffic" = GREATEST(50, round(s."monthlyTraffic" * (1 + (random() * 2 - 1) * ${pct * 0.8})))::int,
           "lastScrapedAt"  = now(),
           "updatedAt"      = now()
+      -- Drift is a simulation for sample data only; live stores get real
+      -- snapshots from the storefront ingestion.
+      WHERE s.source = 'mock' AND s."monthlyRevenue" IS NOT NULL AND s."monthlyTraffic" IS NOT NULL
       RETURNING s.id, s."monthlyRevenue", s."monthlyTraffic"
     ),
     inserted AS (
-      INSERT INTO "StoreSnapshot" (id, "storeId", "monthlyRevenue", "monthlyTraffic", "capturedAt")
-      SELECT gen_random_uuid()::text, id, "monthlyRevenue", "monthlyTraffic", now()
+      INSERT INTO "StoreSnapshot" (id, "storeId", "monthlyRevenue", "monthlyTraffic", source, "capturedAt")
+      SELECT gen_random_uuid()::text, id, "monthlyRevenue", "monthlyTraffic", 'mock', now()
       FROM drifted
       RETURNING id
     )

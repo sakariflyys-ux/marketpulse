@@ -24,6 +24,18 @@ function define<Schema extends z.ZodObject>(def: ToolDefinition<Schema>): ToolDe
   return def;
 }
 
+/** Whole days between two sightings; null when either is unknown. */
+export function daysBetween(from: Date | null, to: Date | null): number | null {
+  if (!from || !to) return null;
+  return Math.max(0, Math.round((to.getTime() - from.getTime()) / 86_400_000));
+}
+
+/** Percent change between two observations; null unless both are known and the base is positive. */
+export function growthPct(from: number | null, to: number | null): number | null {
+  if (from === null || to === null || from <= 0) return null;
+  return Math.round(((to - from) / from) * 1000) / 10;
+}
+
 export class ToolError extends Error {
   constructor(message: string) {
     super(message);
@@ -67,11 +79,27 @@ export const searchAds = define({
         headline: a.headline,
         bodyText: a.bodyText,
         cta: a.cta,
+        // Measured only for sample data; null means "not available", never zero.
         engagementRate: a.engagementRate,
         spendEstimate: a.spendEstimate,
         impressions: a.impressions,
+        impressionsRange:
+          a.impressionsLower !== null || a.impressionsUpper !== null
+            ? { lower: a.impressionsLower, upper: a.impressionsUpper }
+            : null,
+        euTotalReach: a.euTotalReach,
         targetAudience: a.targetAudience,
-        store: { id: a.store.id, name: a.store.name, domain: a.store.shopifyDomain },
+        source: a.source,
+        active: a.active,
+        firstSeenAt: a.firstSeenAt,
+        lastSeenAt: a.lastSeenAt,
+        daysRunning: daysBetween(a.firstSeenAt, a.lastSeenAt),
+        advertiser: a.store
+          ? { id: a.store.id, name: a.store.name, domain: a.store.shopifyDomain }
+          : { id: null, name: a.pageName, domain: null, metaPageId: a.pageId },
+        store: a.store
+          ? { id: a.store.id, name: a.store.name, domain: a.store.shopifyDomain }
+          : null,
         creativeUrl: a.creativeUrl,
       })),
     };
@@ -95,9 +123,19 @@ export const getTrendingStores = define({
         name: s.name,
         domain: s.shopifyDomain,
         category: s.category,
+        source: s.source,
+        // Measured (sample data) vs. estimated (live): never mix them up.
         monthlyRevenue: s.monthlyRevenue,
         monthlyTraffic: s.monthlyTraffic,
+        revenueEstimate: s.revenueEstimate,
+        estimateConfidence: s.estimateConfidence,
+        productCount: s.productCount,
+        priceRange:
+          s.priceMin !== null || s.priceMax !== null
+            ? { min: s.priceMin, max: s.priceMax, currency: s.currency }
+            : null,
         growth7d: s.growth === null ? null : Math.round(s.growth * 1000) / 10,
+        growthMetric: s.growthMetric,
         techStack: s.techStack,
       })),
     };
@@ -121,23 +159,43 @@ export const getStoreInsights = define({
     if (!store) throw new ToolError(`No store found for domain "${clean}"`);
     const first = store.snapshots[0];
     const last = store.snapshots[store.snapshots.length - 1];
-    const growth30d =
-      first && last && first.monthlyRevenue > 0
-        ? Math.round(((last.monthlyRevenue - first.monthlyRevenue) / first.monthlyRevenue) * 1000) /
-          10
-        : null;
+    const revenueGrowth30d = growthPct(first?.monthlyRevenue ?? null, last?.monthlyRevenue ?? null);
+    const productCountGrowth30d = growthPct(
+      first?.productCount ?? null,
+      last?.productCount ?? null,
+    );
     return {
       id: store.id,
       name: store.name,
       domain: store.shopifyDomain,
       description: store.description,
       category: store.category,
+      source: store.source,
+      sourceUpdatedAt: store.sourceUpdatedAt,
+      // Measured figures exist only for sample stores.
       monthlyRevenue: store.monthlyRevenue,
       monthlyTraffic: store.monthlyTraffic,
-      growth30d,
+      growth30d: revenueGrowth30d,
+      // Storefront-derived estimate and observable signals for live stores.
+      revenueEstimate: store.revenueEstimate,
+      estimateConfidence: store.estimateConfidence,
+      productCount: store.productCount,
+      productCountGrowth30d,
+      priceRange:
+        store.priceMin !== null || store.priceMax !== null
+          ? { min: store.priceMin, max: store.priceMax, currency: store.currency }
+          : null,
       techStack: store.techStack,
       topProduct: store.topProduct,
       lastScrapedAt: store.lastScrapedAt,
+      history: store.snapshots.map((s) => ({
+        date: s.capturedAt.toISOString().slice(0, 10),
+        monthlyRevenue: s.monthlyRevenue,
+        monthlyTraffic: s.monthlyTraffic,
+        productCount: s.productCount,
+        revenueEstimate: s.revenueEstimate,
+      })),
+      /** Same as `history`, kept so existing prompts keep working. */
       revenueHistory: store.snapshots.map((s) => ({
         date: s.capturedAt.toISOString().slice(0, 10),
         monthlyRevenue: s.monthlyRevenue,
@@ -148,8 +206,14 @@ export const getStoreInsights = define({
         id: a.id,
         platform: a.platform,
         headline: a.headline,
+        source: a.source,
+        active: a.active,
+        firstSeenAt: a.firstSeenAt,
+        lastSeenAt: a.lastSeenAt,
+        daysRunning: daysBetween(a.firstSeenAt, a.lastSeenAt),
         engagementRate: a.engagementRate,
         spendEstimate: a.spendEstimate,
+        euTotalReach: a.euTotalReach,
       })),
     };
   },

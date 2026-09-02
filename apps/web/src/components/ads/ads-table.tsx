@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, Megaphone } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
+import { Metric } from "@/components/missing-value";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -77,16 +78,20 @@ export function AdsTable({
                   {ad.headline}
                 </TableCell>
                 <TableCell className="hidden max-w-48 truncate text-muted-foreground md:table-cell">
-                  {ad.store.name}
+                  {ad.store?.name ?? ad.pageName ?? "—"}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {ad.engagementRate.toFixed(2)}%
+                  <Metric
+                    value={ad.engagementRate}
+                    format={(v) => `${v.toFixed(2)}%`}
+                    reason="adMetric"
+                  />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatCurrency(ad.spendEstimate)}
+                  <Metric value={ad.spendEstimate} format={formatCurrency} reason="adMetric" />
                 </TableCell>
                 <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                  {formatCompact(ad.impressions)}
+                  <Metric value={ad.impressions} format={formatCompact} reason="adMetric" />
                 </TableCell>
               </TableRow>
             ))}

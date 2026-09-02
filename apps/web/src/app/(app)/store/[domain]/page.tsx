@@ -6,6 +6,7 @@ import { ArrowRight, Globe, Megaphone } from "lucide-react";
 import { getRepositories } from "@synergilon/db/repositories";
 
 import { EmptyState } from "@/components/empty-state";
+import { Metric, Missing } from "@/components/missing-value";
 import { PlatformBadge } from "@/components/ads/platform-badge";
 import { PageHeader } from "@/components/page-header";
 import { GrowthIndicator } from "@/components/stores/growth-indicator";
@@ -24,7 +25,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCompact, formatCurrency, formatDate } from "@/lib/format";
+import { growthFromSnapshots } from "@/lib/growth";
+import { ESTIMATE_METHOD } from "@/lib/metrics";
 import { serialize } from "@/lib/serialize";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const dynamic = "force-dynamic";
 
@@ -40,15 +44,15 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return { title: store?.name ?? "Store not found" };
 }
 
-function growthFromSnapshots(snapshots: { monthlyRevenue: number }[]): number | null {
-  // Mirrors the trending query: latest vs. 7 snapshots earlier.
-  if (snapshots.length < 7) return null;
-  const latest = snapshots[snapshots.length - 1]!.monthlyRevenue;
-  const prior = snapshots[snapshots.length - 7]!.monthlyRevenue;
-  return prior > 0 ? (latest - prior) / prior : null;
-}
-
-function Stat({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+function Stat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: React.ReactNode;
+}) {
   return (
     <Card className="gap-1 py-4">
       <CardHeader className="px-4">
@@ -67,8 +71,27 @@ export default async function StorePage({ params }: { params: Params }) {
   const store = await loadStore(domain);
   if (!store) notFound();
 
-  const growth = growthFromSnapshots(store.snapshots);
+  const { growth, metric: growthMetric } = growthFromSnapshots(store.snapshots);
   const apps = store.techStack?.apps ?? [];
+  // Chart the measured revenue when we have it; otherwise the estimate
+  // (labelled as such); otherwise the observable product count.
+  const hasRevenue = store.snapshots.some((p) => p.monthlyRevenue !== null);
+  const hasEstimate = store.snapshots.some((p) => p.revenueEstimate !== null);
+  const chartSeries = hasRevenue
+    ? "monthlyRevenue"
+    : hasEstimate
+      ? "revenueEstimate"
+      : "productCount";
+  const chartTitle =
+    chartSeries === "monthlyRevenue"
+      ? "Monthly revenue over time"
+      : chartSeries === "revenueEstimate"
+        ? "Estimated monthly revenue over time"
+        : "Catalogue size over time";
+  const chartData = store.snapshots.map((p) => ({
+    capturedAt: p.capturedAt,
+    value: p[chartSeries],
+  }));
   const topProduct = store.topProduct;
   const adsHref = `/ads?storeId=${encodeURIComponent(store.id)}`;
 
@@ -105,20 +128,61 @@ export default async function StorePage({ params }: { params: Params }) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
-          label="Monthly revenue"
-          value={formatCurrency(store.monthlyRevenue)}
-          hint="Estimated"
-        />
-        <Stat
-          label="Monthly traffic"
-          value={formatCompact(store.monthlyTraffic)}
-          hint="Visits, estimated"
-        />
+        {store.monthlyRevenue !== null ? (
+          <Stat
+            label="Monthly revenue"
+            value={formatCurrency(store.monthlyRevenue)}
+            hint="Sample data"
+          />
+        ) : (
+          <Stat
+            label="Monthly revenue (estimate)"
+            value={
+              <Metric
+                value={store.revenueEstimate}
+                format={formatCurrency}
+                reason="storeEstimate"
+              />
+            }
+            hint={
+              store.revenueEstimate !== null ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help underline decoration-dotted underline-offset-2">
+                      Estimate · {store.estimateConfidence ?? "none"} confidence
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">{ESTIMATE_METHOD}</TooltipContent>
+                </Tooltip>
+              ) : (
+                "Not measured"
+              )
+            }
+          />
+        )}
+        {store.monthlyTraffic !== null ? (
+          <Stat
+            label="Monthly traffic"
+            value={formatCompact(store.monthlyTraffic)}
+            hint="Visits, sample data"
+          />
+        ) : (
+          <Stat
+            label="Products"
+            value={
+              <Metric value={store.productCount} format={formatCompact} reason="storeMeasured" />
+            }
+            hint={
+              store.priceMin !== null && store.priceMax !== null
+                ? `${store.currency ?? ""} ${store.priceMin.toFixed(0)}–${store.priceMax.toFixed(0)} price range`
+                : "Public catalogue"
+            }
+          />
+        )}
         <Stat
           label="7-day growth"
           value={<GrowthIndicator growth={growth} className="text-xl" />}
-          hint="Revenue"
+          hint={growthMetric === "monthlyRevenue" ? "Revenue" : "Product count (observable)"}
         />
         <Stat
           label="Ads tracked"
@@ -130,13 +194,20 @@ export default async function StorePage({ params }: { params: Params }) {
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Monthly revenue over time</CardTitle>
+            <CardTitle>{chartTitle}</CardTitle>
             <CardDescription>
-              Daily estimates from the last {store.snapshots.length} snapshots
+              {chartSeries === "monthlyRevenue"
+                ? `Daily figures from the last ${store.snapshots.length} snapshots (sample data)`
+                : chartSeries === "revenueEstimate"
+                  ? "Storefront-derived estimate per snapshot — not a measurement"
+                  : "Products in the public catalogue per snapshot"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RevenueChart data={serialize(store.snapshots)} />
+            <RevenueChart
+              data={serialize(chartData)}
+              format={chartSeries === "productCount" ? formatCompact : formatCurrency}
+            />
           </CardContent>
         </Card>
         <Card>
@@ -223,16 +294,26 @@ export default async function StorePage({ params }: { params: Params }) {
                       {ad.headline}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {ad.engagementRate.toFixed(2)}%
+                      <Metric
+                        value={ad.engagementRate}
+                        format={(v) => `${v.toFixed(2)}%`}
+                        reason="adMetric"
+                      />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {formatCurrency(ad.spendEstimate)}
+                      <Metric value={ad.spendEstimate} format={formatCurrency} reason="adMetric" />
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums md:table-cell">
-                      {formatCompact(ad.impressions)}
+                      {ad.impressions !== null ? (
+                        formatCompact(ad.impressions)
+                      ) : ad.euTotalReach !== null ? (
+                        `${formatCompact(ad.euTotalReach)} EU`
+                      ) : (
+                        <Missing reason="adMetric" />
+                      )}
                     </TableCell>
                     <TableCell className="hidden text-right text-muted-foreground md:table-cell">
-                      {formatDate(ad.createdAt)}
+                      {formatDate(ad.lastSeenAt ?? ad.createdAt)}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -3,6 +3,7 @@ import { prisma } from "../../client";
 import { decodeKeysetCursor, decodeOffsetCursor, toPage, type Page } from "../pagination";
 import type {
   CategoryCount,
+  GrowthMetric,
   StoreDetail,
   StoreListParams,
   StoreRepository,
@@ -14,10 +15,11 @@ import type {
 /** Number of most recent snapshots used to compute trending growth. */
 const GROWTH_WINDOW = 7;
 
-const STORE_COLUMNS = Prisma.sql`
+export const STORE_COLUMNS = Prisma.sql`
   s.id, s."shopifyDomain", s.name, s.description, s.logo, s.category,
-  s."monthlyRevenue", s."monthlyTraffic", s."topProduct", s."techStack",
-  s."lastScrapedAt", s."createdAt", s."updatedAt"`;
+  s."monthlyRevenue", s."monthlyTraffic", s."revenueEstimate", s."estimateConfidence",
+  s."productCount", s."priceMin", s."priceMax", s.currency, s.source, s."sourceUpdatedAt",
+  s."topProduct", s."techStack", s."lastScrapedAt", s."createdAt", s."updatedAt"`;
 
 type StoreRow = StoreSummary & { _sort: number | string | Date | null };
 
@@ -25,8 +27,27 @@ type StoreRow = StoreSummary & { _sort: number | string | Date | null };
  * Mock data source: reads the Faker-seeded Postgres tables. Raw SQL is used
  * for list/trending because Prisma can't express tsvector search, ts_rank
  * ordering or window functions; everything else goes through the client.
+ *
+ * `sourceFilter()` scopes every query to seed rows so ingested live data
+ * never leaks into the mock view (and vice versa in LiveStoreRepository,
+ * which subclasses this and overrides the filter and the growth metric).
  */
 export class MockStoreRepository implements StoreRepository {
+  /** SQL predicate on the aliased Store row `s`. */
+  protected sourceFilter(): Prisma.Sql {
+    return Prisma.sql`s.source = 'mock'`;
+  }
+
+  /** Prisma `where` equivalent of sourceFilter(). */
+  protected sourceWhere(): Prisma.StoreWhereInput {
+    return { source: "mock" };
+  }
+
+  /** Snapshot column the trending growth is computed from. */
+  protected growthMetric(): GrowthMetric {
+    return "monthlyRevenue";
+  }
+
   async list(params: StoreListParams): Promise<Page<StoreSummary>> {
     const { limit } = params;
     const q = params.q?.trim() || undefined;
@@ -50,7 +71,7 @@ export class MockStoreRepository implements StoreRepository {
               ? Prisma.sql`s.name`
               : Prisma.sql`s."monthlyRevenue"`;
 
-    const where: Prisma.Sql[] = [];
+    const where: Prisma.Sql[] = [this.sourceFilter()];
     if (tsquery) where.push(Prisma.sql`s."searchVector" @@ ${tsquery}`);
     if (params.category) where.push(Prisma.sql`s.category = ${params.category}`);
     if (params.minRevenue !== undefined)
@@ -73,7 +94,7 @@ export class MockStoreRepository implements StoreRepository {
     const rows = await prisma.$queryRaw<StoreRow[]>`
       SELECT ${STORE_COLUMNS}, (${sortExpr}) AS "_sort"
       FROM "Store" s
-      ${where.length ? Prisma.sql`WHERE ${Prisma.join(where, " AND ")}` : Prisma.empty}
+      WHERE ${Prisma.join(where, " AND ")}
       ORDER BY (${sortExpr}) ${dir}, s.id ${dir}
       LIMIT ${limit + 1}`;
 
@@ -86,50 +107,68 @@ export class MockStoreRepository implements StoreRepository {
   async trending(params: TrendingParams): Promise<Page<TrendingStore>> {
     const { limit } = params;
     const offset = decodeOffsetCursor(params.cursor);
-    const categoryFilter = params.category
-      ? Prisma.sql`WHERE s.category = ${params.category}`
-      : Prisma.empty;
+    const metric = this.growthMetric();
+    const metricCol =
+      metric === "productCount" ? Prisma.sql`"productCount"` : Prisma.sql`"monthlyRevenue"`;
+    const where: Prisma.Sql[] = [this.sourceFilter()];
+    if (params.category) where.push(Prisma.sql`s.category = ${params.category}`);
 
-    // Growth = (latest snapshot revenue - revenue GROWTH_WINDOW snapshots ago)
+    // Growth = (latest snapshot metric - metric GROWTH_WINDOW snapshots ago)
     // / prior. Stores with too little history get NULL and sort last, then
-    // fall back to absolute revenue so the list is still meaningful.
-    const rows = await prisma.$queryRaw<(StoreSummary & TrendingStore)[]>`
+    // fall back to the absolute metric so the list is still meaningful.
+    // Mock stores grow on monthlyRevenue; live stores on the observable
+    // productCount (nothing public exposes revenue).
+    const rows = await prisma.$queryRaw<(StoreSummary & Omit<TrendingStore, "growthMetric">)[]>`
       WITH ranked AS (
-        SELECT "storeId", "monthlyRevenue",
+        SELECT "storeId", ${metricCol} AS metric,
                row_number() OVER (PARTITION BY "storeId" ORDER BY "capturedAt" DESC) AS rn
         FROM "StoreSnapshot"
+        WHERE ${metricCol} IS NOT NULL
       ),
       growth AS (
         SELECT "storeId",
-               max(CASE WHEN rn = 1 THEN "monthlyRevenue" END) AS latest,
-               max(CASE WHEN rn = ${GROWTH_WINDOW} THEN "monthlyRevenue" END) AS prior
+               max(CASE WHEN rn = 1 THEN metric END) AS latest,
+               max(CASE WHEN rn = ${GROWTH_WINDOW} THEN metric END) AS prior
         FROM ranked
         WHERE rn IN (1, ${GROWTH_WINDOW})
         GROUP BY "storeId"
       )
       SELECT ${STORE_COLUMNS},
-             g.latest AS "latestRevenue",
-             g.prior  AS "priorRevenue",
-             CASE WHEN g.prior > 0 THEN (g.latest - g.prior) / g.prior ELSE NULL END AS growth
+             g.latest::float8 AS "latestRevenue",
+             g.prior::float8  AS "priorRevenue",
+             CASE WHEN g.prior > 0 THEN (g.latest - g.prior)::float8 / g.prior ELSE NULL END AS growth
       FROM "Store" s
       LEFT JOIN growth g ON g."storeId" = s.id
-      ${categoryFilter}
-      ORDER BY growth DESC NULLS LAST, s."monthlyRevenue" DESC, s.id
+      WHERE ${Prisma.join(where, " AND ")}
+      ORDER BY growth DESC NULLS LAST, COALESCE(s."monthlyRevenue", s."revenueEstimate", 0) DESC, s.id
       LIMIT ${limit + 1} OFFSET ${offset}`;
 
-    return toPage(rows, limit, () => ({ o: offset + limit }));
+    return toPage(
+      rows.map((r) => ({ ...r, growthMetric: metric })),
+      limit,
+      () => ({ o: offset + limit }),
+    );
   }
 
   async getByDomain(domain: string): Promise<StoreDetail | null> {
-    const store = await prisma.store.findUnique({
-      where: { shopifyDomain: domain },
+    const store = await prisma.store.findFirst({
+      where: { shopifyDomain: domain, ...this.sourceWhere() },
       include: {
         snapshots: {
           orderBy: { capturedAt: "asc" },
-          select: { capturedAt: true, monthlyRevenue: true, monthlyTraffic: true },
+          select: {
+            capturedAt: true,
+            monthlyRevenue: true,
+            monthlyTraffic: true,
+            productCount: true,
+            priceMin: true,
+            priceMax: true,
+            revenueEstimate: true,
+            source: true,
+          },
         },
         ads: {
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ lastSeenAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
           take: 20,
           select: {
             id: true,
@@ -140,6 +179,11 @@ export class MockStoreRepository implements StoreRepository {
             spendEstimate: true,
             impressions: true,
             engagementRate: true,
+            euTotalReach: true,
+            source: true,
+            firstSeenAt: true,
+            lastSeenAt: true,
+            active: true,
             createdAt: true,
           },
         },
@@ -151,6 +195,8 @@ export class MockStoreRepository implements StoreRepository {
     const { _count, snapshots, ads, ...rest } = store;
     return {
       ...rest,
+      source: rest.source as StoreSummary["source"],
+      estimateConfidence: rest.estimateConfidence as StoreSummary["estimateConfidence"],
       topProduct: rest.topProduct as StoreSummary["topProduct"],
       techStack: rest.techStack as StoreSummary["techStack"],
       snapshots,
@@ -162,6 +208,7 @@ export class MockStoreRepository implements StoreRepository {
   async categories(): Promise<CategoryCount[]> {
     const groups = await prisma.store.groupBy({
       by: ["category"],
+      where: this.sourceWhere(),
       _count: { _all: true },
       orderBy: { _count: { category: "desc" } },
     });

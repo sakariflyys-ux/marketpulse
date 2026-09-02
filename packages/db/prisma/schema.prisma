@@ -79,8 +79,20 @@ model Store {
   description    String?
   logo           String?
   category       String
-  monthlyRevenue Float
-  monthlyTraffic Int
+  /// Mock-only measured figures. Null for live stores: nothing public exposes them.
+  monthlyRevenue Float?
+  monthlyTraffic Int?
+  /// Storefront-derived estimate (see sources/shopify/estimate.ts) with its confidence: none | low | medium.
+  revenueEstimate    Float?
+  estimateConfidence String?
+  /// Observable storefront signals.
+  productCount    Int?
+  priceMin        Float?
+  priceMax        Float?
+  currency        String?
+  /// "mock" (seed) or "shopify_storefront" (ingestion).
+  source          String    @default("mock")
+  sourceUpdatedAt DateTime?
   topProduct     Json?
   techStack      Json?
   lastScrapedAt  DateTime?
@@ -98,14 +110,23 @@ model Store {
 
   @@index([monthlyRevenue])
   @@index([category])
+  @@index([source])
   @@index([searchVector], type: Gin)
 }
 
 model StoreSnapshot {
   id             String   @id @default(cuid())
   storeId        String
-  monthlyRevenue Float
-  monthlyTraffic Int
+  /// Mock drift values; null for live snapshots.
+  monthlyRevenue Float?
+  monthlyTraffic Int?
+  /// Observable signals captured by the storefront ingestion.
+  productCount    Int?
+  priceMin        Float?
+  priceMax        Float?
+  revenueEstimate Float?
+  /// "mock" | "shopify_storefront"
+  source         String?
   capturedAt     DateTime @default(now())
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -126,22 +147,101 @@ model Ad {
   headline       String
   bodyText       String
   cta            String
-  spendEstimate  Float
-  impressions    Int
-  engagementRate Float
+  /// Mock-only metrics. The Ad Library does not expose spend or engagement
+  /// for commercial ads, so these are null for live rows — never estimated.
+  spendEstimate  Float?
+  impressions    Int?
+  engagementRate Float?
+  /// Ad Library impression range (political/issue ads only) and EU reach.
+  impressionsLower Int?
+  impressionsUpper Int?
+  euTotalReach     Int?
   targetAudience Json?
-  storeId        String
+  /// Live ads may not map to a tracked store; then pageId/pageName identify the advertiser.
+  storeId        String?
+  pageId         String?
+  pageName       String?
+  /// Meta Ad Library archive id (unique) and delivery window as reported.
+  adLibraryId    String?    @unique
+  firstSeenAt    DateTime?
+  lastSeenAt     DateTime?
+  /// False once an ad stops appearing in the archive; rows are never deleted.
+  active         Boolean    @default(true)
+  /// "mock" | "meta_ad_library"
+  source         String     @default("mock")
+  /// Raw provider payload for debugging and re-mapping.
+  raw            Json?
   createdAt      DateTime   @default(now())
 
   // See Store.searchVector — same approach, over headline + bodyText.
   searchVector Unsupported("tsvector")?
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
   @@index([platform])
   @@index([engagementRate])
+  @@index([source, active])
+  @@index([lastSeenAt])
+  @@index([pageId])
   @@index([searchVector], type: Gin)
+}
+
+// ---------------------------------------------------------------------------
+// Ingestion
+// ---------------------------------------------------------------------------
+
+enum TrackedKind {
+  STORE
+  BRAND
+}
+
+/// Work list for the ingestion jobs: a Shopify domain (STORE) or a Meta page id (BRAND).
+model TrackedEntity {
+  id            String      @id @default(cuid())
+  kind          TrackedKind
+  /// Domain (STORE) or Meta page id (BRAND).
+  value         String
+  /// Human label, e.g. the brand name.
+  label         String?
+  /// For BRAND entities: the store domain whose ads these are (links Ad.storeId).
+  linkedDomain  String?
+  addedByUserId String?
+  active        Boolean     @default(true)
+  lastRunAt     DateTime?
+  lastError     String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([kind, value])
+  @@index([active])
+}
+
+enum IngestSource {
+  META_AD_LIBRARY
+  SHOPIFY_STOREFRONT
+}
+
+enum IngestStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+/// One row per ingestion run, for operational visibility (/ingest).
+model IngestRun {
+  id           String       @id @default(cuid())
+  source       IngestSource
+  status       IngestStatus @default(RUNNING)
+  startedAt    DateTime     @default(now())
+  finishedAt   DateTime?
+  itemsSeen    Int          @default(0)
+  itemsWritten Int          @default(0)
+  error        String?
+  /// Free-form details (per-entity counts, skipped items).
+  details      Json?
+
+  @@index([source, startedAt])
 }
 
 // ---------------------------------------------------------------------------

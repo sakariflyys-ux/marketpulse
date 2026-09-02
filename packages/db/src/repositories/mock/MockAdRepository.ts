@@ -3,16 +3,36 @@ import { prisma } from "../../client";
 import { decodeKeysetCursor, toPage, type Page } from "../pagination";
 import type { AdDetail, AdListParams, AdRepository, AdSummary } from "../AdRepository";
 
-const AD_COLUMNS = Prisma.sql`
+export const AD_COLUMNS = Prisma.sql`
   a.id, a.platform, a."creativeUrl", a.headline, a."bodyText", a.cta,
-  a."spendEstimate", a.impressions, a."engagementRate", a."targetAudience",
-  a."storeId", a."createdAt",
-  json_build_object('id', s.id, 'name', s.name, 'shopifyDomain', s."shopifyDomain", 'logo', s.logo) AS store`;
+  a."spendEstimate", a.impressions, a."engagementRate",
+  a."impressionsLower", a."impressionsUpper", a."euTotalReach", a."targetAudience",
+  a."storeId", a."pageId", a."pageName", a."adLibraryId", a."firstSeenAt", a."lastSeenAt",
+  a.active, a.source, a."createdAt",
+  CASE WHEN s.id IS NULL THEN NULL ELSE
+    json_build_object('id', s.id, 'name', s.name, 'shopifyDomain', s."shopifyDomain", 'logo', s.logo)
+  END AS store`;
 
 type AdRow = AdSummary & { _sort: number | string | Date | null };
 
-/** Mock data source for ads. See MockStoreRepository for the raw-SQL rationale. */
+/**
+ * Mock data source for ads. See MockStoreRepository for the raw-SQL rationale
+ * and the source-scoping approach (LiveAdRepository overrides sourceFilter).
+ */
 export class MockAdRepository implements AdRepository {
+  protected sourceFilter(): Prisma.Sql {
+    return Prisma.sql`a.source = 'mock'`;
+  }
+
+  protected sourceWhere(): Prisma.AdWhereInput {
+    return { source: "mock" };
+  }
+
+  /** Default sort when the caller passes none: mock data has engagement, live data has longevity. */
+  protected defaultSort(): AdListParams["sort"] {
+    return "engagement";
+  }
+
   async list(params: AdListParams): Promise<Page<AdSummary>> {
     const { limit } = params;
     const q = params.q?.trim() || undefined;
@@ -33,12 +53,17 @@ export class MockAdRepository implements AdRepository {
             ? Prisma.sql`a.impressions::float8`
             : sort === "newest"
               ? Prisma.sql`a."createdAt"`
-              : Prisma.sql`a."engagementRate"`;
+              : sort === "longest_running"
+                ? // Days between first and last sighting; mock ads (no sightings) sort last.
+                  Prisma.sql`COALESCE(EXTRACT(EPOCH FROM (a."lastSeenAt" - a."firstSeenAt")) / 86400, -1)::float8`
+                : Prisma.sql`a."engagementRate"`;
 
-    const where: Prisma.Sql[] = [];
+    const where: Prisma.Sql[] = [this.sourceFilter()];
     if (tsquery) where.push(Prisma.sql`a."searchVector" @@ ${tsquery}`);
     if (params.platform) where.push(Prisma.sql`a.platform = ${params.platform}::"AdPlatform"`);
     if (params.storeId) where.push(Prisma.sql`a."storeId" = ${params.storeId}`);
+    if (params.pageId) where.push(Prisma.sql`a."pageId" = ${params.pageId}`);
+    if (params.activeOnly) where.push(Prisma.sql`a.active = true`);
     if (params.minEngagement !== undefined)
       where.push(Prisma.sql`a."engagementRate" >= ${params.minEngagement}`);
     if (params.maxEngagement !== undefined)
@@ -62,9 +87,9 @@ export class MockAdRepository implements AdRepository {
     const rows = await prisma.$queryRaw<AdRow[]>`
       SELECT ${AD_COLUMNS}, (${sortExpr}) AS "_sort"
       FROM "Ad" a
-      JOIN "Store" s ON s.id = a."storeId"
-      ${where.length ? Prisma.sql`WHERE ${Prisma.join(where, " AND ")}` : Prisma.empty}
-      ORDER BY (${sortExpr}) ${dir}, a.id ${dir}
+      LEFT JOIN "Store" s ON s.id = a."storeId"
+      WHERE ${Prisma.join(where, " AND ")}
+      ORDER BY (${sortExpr}) ${dir} ${desc ? Prisma.sql`NULLS LAST` : Prisma.sql`NULLS FIRST`}, a.id ${dir}
       LIMIT ${limit + 1}`;
 
     return toPage(
@@ -78,11 +103,16 @@ export class MockAdRepository implements AdRepository {
   }
 
   async getById(id: string): Promise<AdDetail | null> {
-    const ad = await prisma.ad.findUnique({
-      where: { id },
+    const ad = await prisma.ad.findFirst({
+      where: { id, ...this.sourceWhere() },
       include: { store: { select: { id: true, name: true, shopifyDomain: true, logo: true } } },
     });
     if (!ad) return null;
-    return { ...ad, targetAudience: ad.targetAudience as AdSummary["targetAudience"] };
+    const { raw: _raw, ...rest } = ad;
+    return {
+      ...rest,
+      source: rest.source as AdSummary["source"],
+      targetAudience: rest.targetAudience as AdSummary["targetAudience"],
+    };
   }
 }

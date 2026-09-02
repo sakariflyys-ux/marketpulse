@@ -13,15 +13,25 @@ import {
 
 import { formatCurrency, formatDate, formatShortDate } from "@/lib/format";
 
-type Point = { capturedAt: string; monthlyRevenue: number };
+type Point = { capturedAt: string; value: number | null };
 
 /**
- * Single-series revenue-over-time line. One axis, thin line, crosshair
- * tooltip; the title above names the series so no legend is needed.
+ * Single-series line over snapshot history. One axis, thin line, crosshair
+ * tooltip; the title above names the series so no legend is needed. Points
+ * with a null value are dropped, never zero-filled.
  */
-export function RevenueChart({ data }: { data: Point[] }) {
+export function RevenueChart({
+  data,
+  format = formatCurrency,
+}: {
+  data: Point[];
+  format?: (v: number) => string;
+}) {
   const points = React.useMemo(
-    () => data.map((p) => ({ t: new Date(p.capturedAt).getTime(), revenue: p.monthlyRevenue })),
+    () =>
+      data
+        .filter((p): p is { capturedAt: string; value: number } => p.value !== null)
+        .map((p) => ({ t: new Date(p.capturedAt).getTime(), revenue: p.value })),
     [data],
   );
 
@@ -51,7 +61,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
           />
           <YAxis
             width={56}
-            tickFormatter={(v: number) => formatCurrency(v)}
+            tickFormatter={(v: number) => format(v)}
             tickLine={false}
             axisLine={false}
             tick={{ fill: "var(--muted-foreground)" }}
@@ -64,7 +74,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
               return (
                 <div className="rounded-md border bg-popover px-3 py-2 text-popover-foreground shadow-md">
                   <p className="text-muted-foreground">{formatDate(new Date(p.t))}</p>
-                  <p className="font-semibold tabular-nums">{formatCurrency(p.revenue)}</p>
+                  <p className="font-semibold tabular-nums">{format(p.revenue)}</p>
                 </div>
               );
             }}

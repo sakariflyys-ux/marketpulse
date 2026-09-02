@@ -202,7 +202,12 @@ function ItemBody({ item }: { item: SavedItemData }) {
             {s.name}
           </Link>
           <p className="truncate text-xs text-muted-foreground">
-            {s.shopifyDomain} · {formatCurrency(s.monthlyRevenue)}/mo
+            {s.shopifyDomain}
+            {s.monthlyRevenue !== null
+              ? ` · ${formatCurrency(s.monthlyRevenue)}/mo`
+              : s.revenueEstimate !== null
+                ? ` · ~${formatCurrency(s.revenueEstimate)}/mo (est.)`
+                : ""}
           </p>
           <Badge variant="secondary" className="mt-1">
             {s.category}
@@ -220,13 +225,18 @@ function ItemBody({ item }: { item: SavedItemData }) {
       <div className="min-w-0">
         <p className="line-clamp-2 font-medium">{a.headline}</p>
         <p className="truncate text-xs text-muted-foreground">
-          <Link
-            href={`/store/${encodeURIComponent(a.store.shopifyDomain)}`}
-            className="hover:underline"
-          >
-            {a.store.name}
-          </Link>{" "}
-          · {a.engagementRate.toFixed(1)}% eng · {formatCurrency(a.spendEstimate)}
+          {a.store ? (
+            <Link
+              href={`/store/${encodeURIComponent(a.store.shopifyDomain)}`}
+              className="hover:underline"
+            >
+              {a.store.name}
+            </Link>
+          ) : (
+            <span>{a.pageName ?? "Unknown advertiser"}</span>
+          )}
+          {a.engagementRate !== null ? ` · ${a.engagementRate.toFixed(1)}% eng` : ""}
+          {a.spendEstimate !== null ? ` · ${formatCurrency(a.spendEstimate)}` : ""}
         </p>
         <PlatformBadge platform={a.platform} className="mt-1" />
       </div>

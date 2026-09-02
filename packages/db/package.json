@@ -20,7 +20,8 @@
     "studio": "prisma studio",
     "seed": "tsx src/seed.ts",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
@@ -39,6 +40,7 @@
     "prisma": "7.10.0",
     "tsx": "^4.23.13",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.69.0"
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^4.1.11"
   }
 }

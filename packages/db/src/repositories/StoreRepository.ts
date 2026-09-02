@@ -26,6 +26,10 @@ export type TrendingParams = {
 export type TopProduct = { name: string; price: number; imageUrl?: string };
 export type TechStack = { theme?: string; apps?: string[] };
 
+/** Where a row came from: the Faker seed or an ingestion job. */
+export type StoreSource = "mock" | "shopify_storefront";
+export type EstimateConfidence = "none" | "low" | "medium";
+
 export type StoreSummary = {
   id: string;
   shopifyDomain: string;
@@ -33,8 +37,19 @@ export type StoreSummary = {
   description: string | null;
   logo: string | null;
   category: string;
-  monthlyRevenue: number;
-  monthlyTraffic: number;
+  /** Measured figures exist only for mock stores; null for live rows. */
+  monthlyRevenue: number | null;
+  monthlyTraffic: number | null;
+  /** Storefront-derived estimate and how much to trust it. */
+  revenueEstimate: number | null;
+  estimateConfidence: EstimateConfidence | null;
+  /** Observable storefront signals (live rows). */
+  productCount: number | null;
+  priceMin: number | null;
+  priceMax: number | null;
+  currency: string | null;
+  source: StoreSource;
+  sourceUpdatedAt: Date | null;
   topProduct: TopProduct | null;
   techStack: TechStack | null;
   lastScrapedAt: Date | null;
@@ -42,14 +57,27 @@ export type StoreSummary = {
   updatedAt: Date;
 };
 
+/** Which snapshot column the trending growth figure was computed from. */
+export type GrowthMetric = "monthlyRevenue" | "productCount";
+
 export type TrendingStore = StoreSummary & {
-  /** Revenue growth over the last 7 snapshots as a fraction (0.12 = +12%). Null when history is too short. */
+  /** Growth of `growthMetric` over the last 7 snapshots as a fraction (0.12 = +12%). Null when history is too short. */
   growth: number | null;
+  growthMetric: GrowthMetric;
   latestRevenue: number | null;
   priorRevenue: number | null;
 };
 
-export type SnapshotPoint = { capturedAt: Date; monthlyRevenue: number; monthlyTraffic: number };
+export type SnapshotPoint = {
+  capturedAt: Date;
+  monthlyRevenue: number | null;
+  monthlyTraffic: number | null;
+  productCount: number | null;
+  priceMin: number | null;
+  priceMax: number | null;
+  revenueEstimate: number | null;
+  source: string | null;
+};
 
 export type StoreAdSummary = {
   id: string;
@@ -57,9 +85,15 @@ export type StoreAdSummary = {
   creativeUrl: string;
   headline: string;
   cta: string;
-  spendEstimate: number;
-  impressions: number;
-  engagementRate: number;
+  /** Null for live ads: the Ad Library does not expose spend or engagement for commercial ads. */
+  spendEstimate: number | null;
+  impressions: number | null;
+  engagementRate: number | null;
+  euTotalReach: number | null;
+  source: string;
+  firstSeenAt: Date | null;
+  lastSeenAt: Date | null;
+  active: boolean;
   createdAt: Date;
 };
 

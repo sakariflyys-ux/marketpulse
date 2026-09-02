@@ -79,7 +79,7 @@ const INTERESTS = [
 ];
 const COUNTRIES = ["US", "CA", "GB", "AU", "DE", "FR", "NL", "SE"];
 
-type StoreRef = { id: string; monthlyRevenue: number; monthlyTraffic: number };
+type StoreRef = { id: string; monthlyRevenue: number | null; monthlyTraffic: number | null };
 
 function pickScale(): Scale {
   const raw = (process.env["SEED_SCALE"] ?? "small").toLowerCase();
@@ -112,7 +112,9 @@ async function reset(): Promise<void> {
   // TRUNCATE ... CASCADE also clears StoreSnapshot and Ad via FK cascade.
   // SavedItem.itemId is a plain string (no FK) so saved references to seeded
   // rows will dangle after a reseed — acceptable for mock data.
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE "Store" RESTART IDENTITY CASCADE`);
+  // Only seed rows are replaced; ingested live data (source <> 'mock') is untouched.
+  await prisma.store.deleteMany({ where: { source: "mock" } });
+  await prisma.ad.deleteMany({ where: { source: "mock" } });
 }
 
 async function seedStores(count: number): Promise<StoreRef[]> {
@@ -149,6 +151,7 @@ async function seedStores(count: number): Promise<StoreRef[]> {
         apps: faker.helpers.arrayElements(APPS, { min: 1, max: 5 }),
       },
       lastScrapedAt: faker.date.recent({ days: 3 }),
+      source: "mock",
     });
   }
 
@@ -172,6 +175,9 @@ async function seedSnapshots(stores: StoreRef[]): Promise<number> {
     // Walk backwards from today's value. Each store gets a trend (growing,
     // flat, or declining) plus daily noise so growth rankings are meaningful.
     const dailyTrend = faker.number.float({ min: -0.012, max: 0.02 });
+    // Seeded stores always carry measured values; the columns are nullable
+    // only for live rows.
+    if (store.monthlyRevenue === null || store.monthlyTraffic === null) continue;
     let revenue = store.monthlyRevenue;
     let traffic = store.monthlyTraffic;
 
@@ -181,6 +187,7 @@ async function seedSnapshots(stores: StoreRef[]): Promise<number> {
         storeId: store.id,
         monthlyRevenue: Math.round(revenue),
         monthlyTraffic: Math.round(traffic),
+        source: "mock",
         capturedAt,
       });
       // Reverse the trend to reconstruct the previous day.
@@ -223,6 +230,7 @@ async function seedAds(storeIds: string[], count: number): Promise<number> {
       },
       storeId: faker.helpers.arrayElement(storeIds),
       createdAt: faker.date.recent({ days: 90 }),
+      source: "mock",
     });
   }
 
