@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { z } from "zod";
-import { getRepositories } from "@synergilon/db/repositories";
+import { getRepositories, resolveDataSource } from "@synergilon/db/repositories";
 
 import { AdsFilters } from "@/components/ads/ads-filters";
 import { AdsTable, AdsTableSkeleton } from "@/components/ads/ads-table";
@@ -29,6 +29,11 @@ const paramsSchema = z.object({
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+/** Live ads have no engagement; longevity is the meaningful default order. */
+function defaultSort(): "engagement" | "longest_running" {
+  return resolveDataSource() === "live" ? "longest_running" : "engagement";
+}
+
 export default async function AdsPage({ searchParams }: { searchParams: SearchParams }) {
   const raw = await searchParams;
   const params = paramsSchema.parse(raw);
@@ -41,7 +46,7 @@ export default async function AdsPage({ searchParams }: { searchParams: SearchPa
         description="Creatives across Meta, TikTok and Google. Click a row for details."
       />
       <Suspense>
-        <AdsFilters />
+        <AdsFilters defaultSort={defaultSort()} />
       </Suspense>
       <Suspense key={key} fallback={<AdsTableSkeleton />}>
         <Results params={params} />
@@ -52,7 +57,7 @@ export default async function AdsPage({ searchParams }: { searchParams: SearchPa
 
 async function Results({ params }: { params: z.infer<typeof paramsSchema> }) {
   const q = params.q || undefined;
-  const sort = params.sort ?? (q ? "relevance" : "engagement");
+  const sort = params.sort ?? (q ? "relevance" : defaultSort());
   const order = params.order ?? "desc";
   const listParams = {
     q,

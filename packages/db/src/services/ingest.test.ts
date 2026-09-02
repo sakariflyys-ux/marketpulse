@@ -6,16 +6,37 @@ import type { AdArchiveItem, AdArchivePage } from "../sources/meta";
 import { ShopifyStorefrontClient } from "../sources/shopify";
 import { PerKeyRateLimiter } from "../sources/http";
 import { readFileSync } from "node:fs";
-import { brandQuery, runIngestAds, runIngestStores, type IngestDb, type TrackedEntityRow } from "./ingest";
+import {
+  brandQuery,
+  runIngestAds,
+  runIngestStores,
+  type IngestDb,
+  type TrackedEntityRow,
+} from "./ingest";
 
 vi.mock("../client", () => ({ prisma: {} }));
 
 /** In-memory IngestDb so the jobs run end to end on fixtures. */
 function memoryDb(entities: TrackedEntityRow[]) {
-  const ads = new Map<string, { data: Record<string, unknown>; firstSeenAt: Date | null; lastSeenAt: Date | null; active: boolean }>();
+  const ads = new Map<
+    string,
+    {
+      data: Record<string, unknown>;
+      firstSeenAt: Date | null;
+      lastSeenAt: Date | null;
+      active: boolean;
+    }
+  >();
   const stores = new Map<string, Record<string, unknown>>();
   const snapshots: { storeId: string; data: Record<string, unknown> }[] = [];
-  const runs: { id: string; source: string; status: string; itemsSeen?: number; itemsWritten?: number; error?: string | null }[] = [];
+  const runs: {
+    id: string;
+    source: string;
+    status: string;
+    itemsSeen?: number;
+    itemsWritten?: number;
+    error?: string | null;
+  }[] = [];
   const db: IngestDb = {
     async listTracked(kind) {
       return entities.filter((e) => e.kind === kind);
@@ -33,12 +54,22 @@ function memoryDb(entities: TrackedEntityRow[]) {
       const last = (ad.data.lastSeenAt as Date | null) ?? observedAt;
       if (existing) {
         existing.data = ad.data as Record<string, unknown>;
-        existing.firstSeenAt = existing.firstSeenAt && first ? (existing.firstSeenAt < first ? existing.firstSeenAt : first) : (existing.firstSeenAt ?? first);
+        existing.firstSeenAt =
+          existing.firstSeenAt && first
+            ? existing.firstSeenAt < first
+              ? existing.firstSeenAt
+              : first
+            : (existing.firstSeenAt ?? first);
         existing.lastSeenAt = last;
         existing.active = Boolean(ad.data.active);
         return "updated";
       }
-      ads.set(ad.adLibraryId, { data: ad.data as Record<string, unknown>, firstSeenAt: first, lastSeenAt: last, active: Boolean(ad.data.active) });
+      ads.set(ad.adLibraryId, {
+        data: ad.data as Record<string, unknown>,
+        firstSeenAt: first,
+        lastSeenAt: last,
+        active: Boolean(ad.data.active),
+      });
       return "created";
     },
     async deactivateMissingAds(pageId, seen, observedAt) {
@@ -65,7 +96,10 @@ function memoryDb(entities: TrackedEntityRow[]) {
       return id;
     },
     async finishRun(id, patch) {
-      Object.assign(runs.find((r) => r.id === id)!, patch);
+      Object.assign(
+        runs.find((r) => r.id === id)!,
+        patch,
+      );
     },
   };
   return { db, ads, stores, snapshots, runs };
@@ -79,10 +113,23 @@ function metaClient(pagesByCall: AdArchivePage[][]) {
     const page = pages.shift() ?? { data: [] };
     return new Response(JSON.stringify(page), { status: 200 });
   });
-  return new MetaAdLibraryClient({ accessToken: "T", fetch: fetchMock as unknown as typeof fetch, sleep: async () => undefined });
+  return new MetaAdLibraryClient({
+    accessToken: "T",
+    fetch: fetchMock as unknown as typeof fetch,
+    sleep: async () => undefined,
+  });
 }
 
-const brand: TrackedEntityRow = { id: "e1", kind: "BRAND", value: "100200300", label: "Example Linen", linkedDomain: "example-linen.com", active: true, lastRunAt: null, lastError: null };
+const brand: TrackedEntityRow = {
+  id: "e1",
+  kind: "BRAND",
+  value: "100200300",
+  label: "Example Linen",
+  linkedDomain: "example-linen.com",
+  active: true,
+  lastRunAt: null,
+  lastError: null,
+};
 
 describe("brandQuery", () => {
   it("uses page ids for numeric values and search terms otherwise", () => {
@@ -120,7 +167,10 @@ describe("runIngestAds", () => {
   it("marks ads that disappeared as inactive instead of deleting them", async () => {
     const t1 = new Date("2026-09-01T00:00:00Z");
     const t2 = new Date("2026-09-05T00:00:00Z");
-    const both = [commercial, { ...commercial, id: "second", ad_creative_link_titles: ["Other"] }] as AdArchiveItem[];
+    const both = [
+      commercial,
+      { ...commercial, id: "second", ad_creative_link_titles: ["Other"] },
+    ] as AdArchiveItem[];
     const client = metaClient([[{ data: both }], [{ data: [commercial as AdArchiveItem] }]]);
     const { db, ads } = memoryDb([brand]);
     await runIngestAds(client, db, { countries: ["FI"], now: () => t1 });
@@ -149,9 +199,16 @@ describe("runIngestAds", () => {
       call++;
       return call === 1
         ? new Response(JSON.stringify({ data: good }), { status: 200 })
-        : new Response(JSON.stringify({ error: { code: 1, message: "Unknown error" } }), { status: 500 });
+        : new Response(JSON.stringify({ error: { code: 1, message: "Unknown error" } }), {
+            status: 500,
+          });
     });
-    const client = new MetaAdLibraryClient({ accessToken: "T", fetch: fetchMock as unknown as typeof fetch, sleep: async () => undefined, maxRetries: 0 });
+    const client = new MetaAdLibraryClient({
+      accessToken: "T",
+      fetch: fetchMock as unknown as typeof fetch,
+      sleep: async () => undefined,
+      maxRetries: 0,
+    });
     const { db } = memoryDb([brand, bad]);
     const result = await runIngestAds(client, db, { countries: ["FI"] });
     expect(result.status).toBe("PARTIAL");
@@ -161,22 +218,36 @@ describe("runIngestAds", () => {
 });
 
 describe("runIngestStores", () => {
-  const fixture = (name: string) => readFileSync(new URL(`../sources/shopify/__fixtures__/${name}`, import.meta.url), "utf8");
+  const fixture = (name: string) =>
+    readFileSync(new URL(`../sources/shopify/__fixtures__/${name}`, import.meta.url), "utf8");
   function storefrontClient() {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = new URL(String(input));
       if (url.hostname === "dead.example") return new Response("", { status: 503 });
-      if (url.pathname === "/robots.txt") return new Response(fixture("robots-shopify-default.txt"));
+      if (url.pathname === "/robots.txt")
+        return new Response(fixture("robots-shopify-default.txt"));
       if (url.pathname === "/") return new Response(fixture("shopify-home.html"));
       if (url.pathname === "/products.json") return new Response(fixture("products.json"));
       return new Response("", { status: 404 });
     });
-    return new ShopifyStorefrontClient({ fetch: fetchMock as unknown as typeof fetch, rateLimiter: new PerKeyRateLimiter(0) });
+    return new ShopifyStorefrontClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      rateLimiter: new PerKeyRateLimiter(0),
+    });
   }
 
   it("writes one snapshot per run and upserts the store idempotently", async () => {
     const entities: TrackedEntityRow[] = [
-      { id: "s1", kind: "STORE", value: "example-linen.com", label: null, linkedDomain: null, active: true, lastRunAt: null, lastError: null },
+      {
+        id: "s1",
+        kind: "STORE",
+        value: "example-linen.com",
+        label: null,
+        linkedDomain: null,
+        active: true,
+        lastRunAt: null,
+        lastError: null,
+      },
     ];
     const { db, stores, snapshots, runs } = memoryDb(entities);
     const client = storefrontClient();
@@ -184,14 +255,36 @@ describe("runIngestStores", () => {
     await runIngestStores(client, db);
     expect(stores.size).toBe(1);
     expect(snapshots).toHaveLength(2);
-    expect(stores.get("example-linen.com")).toMatchObject({ monthlyRevenue: null, productCount: 4, source: "shopify_storefront" });
+    expect(stores.get("example-linen.com")).toMatchObject({
+      monthlyRevenue: null,
+      productCount: 4,
+      source: "shopify_storefront",
+    });
     expect(runs.map((r) => r.status)).toEqual(["SUCCESS", "SUCCESS"]);
   });
 
   it("keeps going when a domain is dead and reports PARTIAL", async () => {
     const entities: TrackedEntityRow[] = [
-      { id: "s1", kind: "STORE", value: "dead.example", label: null, linkedDomain: null, active: true, lastRunAt: null, lastError: null },
-      { id: "s2", kind: "STORE", value: "example-linen.com", label: null, linkedDomain: null, active: true, lastRunAt: null, lastError: null },
+      {
+        id: "s1",
+        kind: "STORE",
+        value: "dead.example",
+        label: null,
+        linkedDomain: null,
+        active: true,
+        lastRunAt: null,
+        lastError: null,
+      },
+      {
+        id: "s2",
+        kind: "STORE",
+        value: "example-linen.com",
+        label: null,
+        linkedDomain: null,
+        active: true,
+        lastRunAt: null,
+        lastError: null,
+      },
     ];
     const { db, runs } = memoryDb(entities);
     const result = await runIngestStores(storefrontClient(), db);

@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { formatCurrency, formatDate, formatShortDate } from "@/lib/format";
+import { formatCompact, formatCurrency, formatDate, formatShortDate } from "@/lib/format";
 
 type Point = { capturedAt: string; value: number | null };
 
@@ -20,13 +20,18 @@ type Point = { capturedAt: string; value: number | null };
  * tooltip; the title above names the series so no legend is needed. Points
  * with a null value are dropped, never zero-filled.
  */
+/**
+ * Server pages choose the formatter by name: functions cannot cross the
+ * server/client boundary.
+ */
 export function RevenueChart({
   data,
-  format = formatCurrency,
+  formatAs = "currency",
 }: {
   data: Point[];
-  format?: (v: number) => string;
+  formatAs?: "currency" | "compact";
 }) {
+  const format = formatAs === "compact" ? formatCompact : formatCurrency;
   const points = React.useMemo(
     () =>
       data

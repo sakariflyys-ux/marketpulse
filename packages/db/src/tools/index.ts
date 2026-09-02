@@ -5,8 +5,9 @@
  * hosts only adapt these to their own SDKs, so the logic lives in one place.
  */
 import { z } from "zod";
-import { getRepositories } from "../repositories";
-import { ensureFolderPath, saveItem, ServiceError } from "../services";
+import { CronExpressionParser } from "cron-parser";
+import { getRepositories, resolveDataSource } from "../repositories";
+import { ensureFolderPath, saveItem, ServiceError, trackEntity } from "../services";
 
 export type ToolContext = {
   /** Signed-in user (chat) or MCP_USER_ID (MCP). Required by save_to_folder. */
@@ -46,7 +47,7 @@ export class ToolError extends Error {
 export const searchAds = define({
   name: "search_ads",
   description:
-    "Full-text search over ad creatives (headline + body). Supports web-search syntax (quotes, -exclusions). Returns ads ranked by relevance, or by engagement when no query is given.",
+    "Full-text search over ad creatives (headline + body). Supports web-search syntax (quotes, -exclusions). Each ad carries `source`: 'mock' rows are sample data with synthetic engagement/spend/impressions; 'meta_ad_library' rows are real ads from Meta's Ad Library, for which spend, impressions and engagement are NOT published (null) — the measured facts are firstSeenAt/lastSeenAt/daysRunning (longevity), `active`, and euTotalReach when available. Ranked by relevance, otherwise by engagement (sample) or longevity (live).",
   inputSchema: z.object({
     query: z.string().max(200).describe("Search terms, e.g. 'skincare free shipping'"),
     platform: z
@@ -109,7 +110,7 @@ export const searchAds = define({
 export const getTrendingStores = define({
   name: "get_trending_stores",
   description:
-    "Stores ranked by revenue growth over the last 7 daily snapshots (falls back to absolute revenue for stores without history). Optionally filter by category.",
+    "Stores ranked by growth over the last 7 daily snapshots, then by size. `growthMetric` says what grew: monthlyRevenue for sample stores (source 'mock', synthetic figures), productCount for live stores (source 'shopify_storefront', observed from the public catalogue). Live stores have no measured revenue/traffic (null); `revenueEstimate` with `estimateConfidence` ('none'|'low'|'medium') is an order-of-magnitude guess from catalogue size and prices — say so when you quote it. Optionally filter by category.",
   inputSchema: z.object({
     limit: z.number().int().min(1).max(50).default(10),
     category: z.string().max(100).optional().describe("Exact category name, e.g. 'Skincare'"),
@@ -145,7 +146,7 @@ export const getTrendingStores = define({
 export const getStoreInsights = define({
   name: "get_store_insights",
   description:
-    "Full insights for one store by its Shopify domain (e.g. 'reynolds-group.myshopify.com'): metrics, 30-day revenue history, tech stack, top product and recent ads.",
+    "Full insights for one store by its Shopify domain (e.g. 'allbirds.com'): observed signals (product count, price range, currency, theme, apps), snapshot history, recent ads with days running, and either measured revenue/traffic (sample stores only) or a labelled estimate with `estimateConfidence` (live stores). Null means not available — never treat it as zero.",
   inputSchema: z.object({
     domain: z.string().min(3).max(200).describe("Shopify domain, with or without https://"),
   }),
@@ -246,11 +247,63 @@ export const saveToFolder = define({
   },
 });
 
+function nextCronRun(expression: string): Date | null {
+  try {
+    return CronExpressionParser.parse(expression, { tz: "UTC" }).next().toDate();
+  } catch {
+    return null;
+  }
+}
+
+export const trackEntityTool = define({
+  name: "track_entity",
+  description:
+    "Add a Shopify store domain (kind STORE, e.g. 'allbirds.com') or a Meta advertiser (kind BRAND: numeric Meta page id, or the brand name used as an Ad Library search) to the ingestion work list. Data appears after the next scheduled ingestion run (or a manual `pnpm worker:ingest-stores` / `ingest-ads`); the response says when that is. Only affects DATA_SOURCE=live.",
+  inputSchema: z.object({
+    kind: z.enum(["STORE", "BRAND"]),
+    value: z
+      .string()
+      .min(2)
+      .max(200)
+      .describe("Domain for STORE; Meta page id or brand name for BRAND"),
+    label: z.string().max(100).optional().describe("Display name, e.g. the brand"),
+    linkedDomain: z
+      .string()
+      .max(200)
+      .optional()
+      .describe("For BRAND: the store domain its ads belong to"),
+  }),
+  async execute({ kind, value, label, linkedDomain }, ctx) {
+    const entity = await trackEntity({
+      kind,
+      value,
+      label,
+      linkedDomain,
+      addedByUserId: ctx.userId,
+    });
+    const cronEnv = kind === "STORE" ? "INGEST_STORES_CRON" : "INGEST_ADS_CRON";
+    const cron = process.env[cronEnv] || (kind === "STORE" ? "0 5 * * *" : "0 4 * * *");
+    return {
+      id: entity.id,
+      kind: entity.kind,
+      value: entity.value,
+      label: entity.label,
+      linkedDomain: entity.linkedDomain,
+      active: entity.active,
+      dataSource: resolveDataSource(),
+      schedule: { cron, timezone: "UTC", nextRunAt: nextCronRun(cron) },
+      manualCommand: kind === "STORE" ? "pnpm worker:ingest-stores" : "pnpm worker:ingest-ads",
+      credentialsConfigured: kind === "BRAND" ? Boolean(process.env["META_ACCESS_TOKEN"]) : true,
+    };
+  },
+});
+
 export const synergilonTools = [
   searchAds,
   getTrendingStores,
   getStoreInsights,
   saveToFolder,
+  trackEntityTool,
 ] as const;
 
 export type AnyToolDefinition = (typeof synergilonTools)[number];

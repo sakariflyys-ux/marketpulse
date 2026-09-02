@@ -7,7 +7,12 @@
  */
 import type { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../client";
-import { mapArchiveAd, MetaCredentialError, type AdArchiveItem, type MetaAdLibraryClient } from "../sources/meta";
+import {
+  mapArchiveAd,
+  MetaCredentialError,
+  type AdArchiveItem,
+  type MetaAdLibraryClient,
+} from "../sources/meta";
 import {
   mapStorefront,
   ShopifyStorefrontClient,
@@ -39,13 +44,29 @@ export interface IngestDb {
   /** Insert or update by adLibraryId. Returns "created" | "updated". */
   upsertAd(ad: AdUpsert, observedAt: Date): Promise<"created" | "updated">;
   /** Flags ads for this page that were not seen in this run. Returns how many. */
-  deactivateMissingAds(pageId: string, seenAdLibraryIds: string[], observedAt: Date): Promise<number>;
-  upsertStore(domain: string, data: Omit<Prisma.StoreUncheckedCreateInput, "id" | "shopifyDomain">): Promise<string>;
-  createSnapshot(storeId: string, data: Omit<Prisma.StoreSnapshotUncheckedCreateInput, "id" | "storeId">): Promise<void>;
+  deactivateMissingAds(
+    pageId: string,
+    seenAdLibraryIds: string[],
+    observedAt: Date,
+  ): Promise<number>;
+  upsertStore(
+    domain: string,
+    data: Omit<Prisma.StoreUncheckedCreateInput, "id" | "shopifyDomain">,
+  ): Promise<string>;
+  createSnapshot(
+    storeId: string,
+    data: Omit<Prisma.StoreSnapshotUncheckedCreateInput, "id" | "storeId">,
+  ): Promise<void>;
   startRun(source: IngestSourceName): Promise<string>;
   finishRun(
     id: string,
-    patch: { status: IngestStatusName; itemsSeen: number; itemsWritten: number; error: string | null; details?: unknown },
+    patch: {
+      status: IngestStatusName;
+      itemsSeen: number;
+      itemsWritten: number;
+      error: string | null;
+      details?: unknown;
+    },
   ): Promise<void>;
 }
 
@@ -54,7 +75,13 @@ export type IngestSummary = {
   status: IngestStatusName;
   itemsSeen: number;
   itemsWritten: number;
-  entities: { entity: string; seen: number; written: number; deactivated?: number; error?: string }[];
+  entities: {
+    entity: string;
+    seen: number;
+    written: number;
+    deactivated?: number;
+    error?: string;
+  }[];
   error: string | null;
 };
 
@@ -82,7 +109,8 @@ export async function withIngestRun(
   }
   const summary = totals(entities);
   const failed = entities.filter((e) => e.error).length;
-  const status: IngestStatusName = failed === 0 ? "SUCCESS" : failed === entities.length ? "FAILED" : "PARTIAL";
+  const status: IngestStatusName =
+    failed === 0 ? "SUCCESS" : failed === entities.length ? "FAILED" : "PARTIAL";
   const error = failed ? `${failed} of ${entities.length} entities failed` : null;
   await db.finishRun(runId, { status, ...summary, error, details: { entities } });
   return { runId, status, ...summary, entities, error };
@@ -134,7 +162,13 @@ export async function ingestAdsForEntity(
   let written = 0;
 
   for await (const items of client.iterate(
-    { ...brandQuery(entity.value), countries: options.countries, adDeliveryDateMin: options.deliveryDateMin, adActiveStatus: "ALL", adType: "ALL" },
+    {
+      ...brandQuery(entity.value),
+      countries: options.countries,
+      adDeliveryDateMin: options.deliveryDateMin,
+      adActiveStatus: "ALL",
+      adType: "ALL",
+    },
     options.maxPagesPerEntity ?? 20,
   )) {
     for (const item of items as AdArchiveItem[]) {
@@ -152,29 +186,40 @@ export async function ingestAdsForEntity(
   let deactivated = 0;
   const q = brandQuery(entity.value);
   if (q.searchPageIds) {
-    for (const pageId of q.searchPageIds) deactivated += await db.deactivateMissingAds(pageId, seenIds, observedAt);
+    for (const pageId of q.searchPageIds)
+      deactivated += await db.deactivateMissingAds(pageId, seenIds, observedAt);
   }
 
   await db.markTracked(entity.id, { lastRunAt: observedAt, lastError: null });
   return { entity: entity.label ?? entity.value, seen, written, deactivated };
 }
 
-export async function runIngestAds(client: MetaAdLibraryClient, db: IngestDb, options: IngestAdsOptions): Promise<IngestSummary> {
+export async function runIngestAds(
+  client: MetaAdLibraryClient,
+  db: IngestDb,
+  options: IngestAdsOptions,
+): Promise<IngestSummary> {
   const log = options.log ?? (() => undefined);
   return withIngestRun(db, "META_AD_LIBRARY", async (report) => {
-    if (!client.configured) throw new MetaCredentialError("No ingestion credentials configured: set META_ACCESS_TOKEN");
+    if (!client.configured)
+      throw new MetaCredentialError("No ingestion credentials configured: set META_ACCESS_TOKEN");
     const entities = (await db.listTracked("BRAND")).filter((e) => e.active);
     if (entities.length === 0) log("no active BRAND entities to ingest");
     for (const entity of entities) {
       try {
         const result = await ingestAdsForEntity(client, db, entity, options);
-        log(`${result.entity}: ${result.seen} seen, ${result.written} written, ${result.deactivated ?? 0} deactivated`);
+        log(
+          `${result.entity}: ${result.seen} seen, ${result.written} written, ${result.deactivated ?? 0} deactivated`,
+        );
         report(result);
       } catch (err) {
         // A credential problem affects every entity; stop the run and say so.
         if (err instanceof MetaCredentialError) throw err;
         const error = err instanceof Error ? err.message : String(err);
-        await db.markTracked(entity.id, { lastRunAt: (options.now ?? (() => new Date()))(), lastError: error });
+        await db.markTracked(entity.id, {
+          lastRunAt: (options.now ?? (() => new Date()))(),
+          lastError: error,
+        });
         log(`${entity.label ?? entity.value}: ${error}`);
         report({ entity: entity.label ?? entity.value, seen: 0, written: 0, error });
       }
@@ -203,7 +248,11 @@ export async function ingestStoreForEntity(
   return { entity: mapped.domain, seen: 1, written: 1 };
 }
 
-export async function runIngestStores(client: ShopifyStorefrontClient, db: IngestDb, options: IngestStoresOptions = {}): Promise<IngestSummary> {
+export async function runIngestStores(
+  client: ShopifyStorefrontClient,
+  db: IngestDb,
+  options: IngestStoresOptions = {},
+): Promise<IngestSummary> {
   const log = options.log ?? (() => undefined);
   const now = options.now ?? (() => new Date());
   return withIngestRun(db, "SHOPIFY_STOREFRONT", async (report) => {
@@ -235,18 +284,33 @@ export const prismaIngestDb: IngestDb = {
     return prisma.trackedEntity.findMany({
       where: { kind },
       orderBy: { createdAt: "asc" },
-      select: { id: true, kind: true, value: true, label: true, linkedDomain: true, active: true, lastRunAt: true, lastError: true },
+      select: {
+        id: true,
+        kind: true,
+        value: true,
+        label: true,
+        linkedDomain: true,
+        active: true,
+        lastRunAt: true,
+        lastError: true,
+      },
     });
   },
   async markTracked(id, patch) {
     await prisma.trackedEntity.update({ where: { id }, data: patch });
   },
   async findStoreIdByDomain(domain) {
-    const store = await prisma.store.findUnique({ where: { shopifyDomain: domain }, select: { id: true } });
+    const store = await prisma.store.findUnique({
+      where: { shopifyDomain: domain },
+      select: { id: true },
+    });
     return store?.id ?? null;
   },
   async upsertAd(ad, observedAt) {
-    const existing = await prisma.ad.findUnique({ where: { adLibraryId: ad.adLibraryId }, select: { id: true, firstSeenAt: true } });
+    const existing = await prisma.ad.findUnique({
+      where: { adLibraryId: ad.adLibraryId },
+      select: { id: true, firstSeenAt: true },
+    });
     if (existing) {
       const { createdAt: _createdAt, ...rest } = ad.data;
       await prisma.ad.update({
@@ -265,7 +329,12 @@ export const prismaIngestDb: IngestDb = {
   },
   async deactivateMissingAds(pageId, seenAdLibraryIds, observedAt) {
     const res = await prisma.ad.updateMany({
-      where: { pageId, source: { not: "mock" }, active: true, adLibraryId: { notIn: seenAdLibraryIds } },
+      where: {
+        pageId,
+        source: { not: "mock" },
+        active: true,
+        adLibraryId: { notIn: seenAdLibraryIds },
+      },
       data: { active: false, lastSeenAt: observedAt },
     });
     return res.count;
@@ -283,7 +352,10 @@ export const prismaIngestDb: IngestDb = {
     await prisma.storeSnapshot.create({ data: { ...data, storeId } });
   },
   async startRun(source) {
-    const run = await prisma.ingestRun.create({ data: { source, status: "RUNNING" }, select: { id: true } });
+    const run = await prisma.ingestRun.create({
+      data: { source, status: "RUNNING" },
+      select: { id: true },
+    });
     return run.id;
   },
   async finishRun(id, patch) {
@@ -346,15 +418,34 @@ export async function listTrackedEntities() {
   return prisma.trackedEntity.findMany({ orderBy: [{ kind: "asc" }, { createdAt: "asc" }] });
 }
 
-export type TrackInput = { kind: "STORE" | "BRAND"; value: string; label?: string; linkedDomain?: string; addedByUserId?: string };
+export type TrackInput = {
+  kind: "STORE" | "BRAND";
+  value: string;
+  label?: string;
+  linkedDomain?: string;
+  addedByUserId?: string;
+};
 
 /** Adds (or re-activates) a tracked entity. Domains are normalised. */
 export async function trackEntity(input: TrackInput) {
-  const value = input.kind === "STORE" ? ShopifyStorefrontClient.normalizeDomain(input.value) : input.value.trim();
+  const value =
+    input.kind === "STORE"
+      ? ShopifyStorefrontClient.normalizeDomain(input.value)
+      : input.value.trim();
   if (!value) throw new Error("value is required");
   return prisma.trackedEntity.upsert({
     where: { kind_value: { kind: input.kind, value } },
-    update: { active: true, ...(input.label ? { label: input.label } : {}), ...(input.linkedDomain ? { linkedDomain: input.linkedDomain } : {}) },
-    create: { kind: input.kind, value, label: input.label ?? null, linkedDomain: input.linkedDomain ?? null, addedByUserId: input.addedByUserId ?? null },
+    update: {
+      active: true,
+      ...(input.label ? { label: input.label } : {}),
+      ...(input.linkedDomain ? { linkedDomain: input.linkedDomain } : {}),
+    },
+    create: {
+      kind: input.kind,
+      value,
+      label: input.label ?? null,
+      linkedDomain: input.linkedDomain ?? null,
+      addedByUserId: input.addedByUserId ?? null,
+    },
   });
 }

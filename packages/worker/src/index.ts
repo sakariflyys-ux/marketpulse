@@ -38,7 +38,9 @@ async function runOnce(): Promise<void> {
   if (job === "snapshot") {
     log("running snapshot job once");
     const result = await runSnapshotJob();
-    log(`done: ${result.snapshots} snapshots, drift ±${result.maxDriftPct}%, ${result.durationMs}ms`);
+    log(
+      `done: ${result.snapshots} snapshots, drift ±${result.maxDriftPct}%, ${result.durationMs}ms`,
+    );
     return;
   }
   log(`running ${job} once`);

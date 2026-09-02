@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Metric, Missing } from "@/components/missing-value";
 import { PlatformBadge } from "@/components/ads/platform-badge";
 import { PageHeader } from "@/components/page-header";
+import { SourceBadge } from "@/components/source-badge";
 import { GrowthIndicator } from "@/components/stores/growth-indicator";
 import { RevenueChart } from "@/components/stores/revenue-chart";
 import { SaveToFolderButton } from "@/components/saved/save-to-folder-dialog";
@@ -24,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCompact, formatCurrency, formatDate } from "@/lib/format";
+import { daysBetween, formatCompact, formatCurrency, formatDate } from "@/lib/format";
 import { growthFromSnapshots } from "@/lib/growth";
 import { ESTIMATE_METHOD } from "@/lib/metrics";
 import { serialize } from "@/lib/serialize";
@@ -114,6 +115,7 @@ export default async function StorePage({ params }: { params: Params }) {
             {store.shopifyDomain}
           </a>
           <div className="flex flex-wrap gap-1.5">
+            <SourceBadge source={store.source} />
             <Badge variant="secondary">{store.category}</Badge>
             {store.techStack?.theme ? (
               <Badge variant="outline">Theme: {store.techStack.theme}</Badge>
@@ -206,7 +208,7 @@ export default async function StorePage({ params }: { params: Params }) {
           <CardContent>
             <RevenueChart
               data={serialize(chartData)}
-              format={chartSeries === "productCount" ? formatCompact : formatCurrency}
+              formatAs={chartSeries === "productCount" ? "compact" : "currency"}
             />
           </CardContent>
         </Card>
@@ -278,10 +280,11 @@ export default async function StorePage({ params }: { params: Params }) {
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="w-28">Platform</TableHead>
                   <TableHead>Headline</TableHead>
+                  <TableHead className="text-right">Days running</TableHead>
                   <TableHead className="text-right">Engagement</TableHead>
                   <TableHead className="text-right">Spend est.</TableHead>
                   <TableHead className="hidden text-right md:table-cell">Impressions</TableHead>
-                  <TableHead className="hidden text-right md:table-cell">Seen</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Last seen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -292,6 +295,13 @@ export default async function StorePage({ params }: { params: Params }) {
                     </TableCell>
                     <TableCell className="max-w-[28rem] font-medium whitespace-normal">
                       {ad.headline}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <Metric
+                        value={daysBetween(ad.firstSeenAt, ad.lastSeenAt)}
+                        format={(v) => `${v}d${ad.active ? "" : " · ended"}`}
+                        reason="adSightings"
+                      />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       <Metric

@@ -1,5 +1,11 @@
 import { cache } from "@synergilon/db/cache";
-import { prismaIngestDb, runIngestAds, runIngestStores, trackedEntityNegativeCache, type IngestSummary } from "@synergilon/db/services";
+import {
+  prismaIngestDb,
+  runIngestAds,
+  runIngestStores,
+  trackedEntityNegativeCache,
+  type IngestSummary,
+} from "@synergilon/db/services";
 import { DEFAULT_AD_COUNTRIES, MetaAdLibraryClient } from "@synergilon/db/sources/meta";
 import { ShopifyStorefrontClient } from "@synergilon/db/sources/shopify";
 
@@ -23,17 +29,25 @@ export function adCountries(): string[] {
  * Runs one ingestion job. Never throws: every outcome is an IngestRun row
  * (SUCCESS / PARTIAL / FAILED) and existing data is left in place on failure.
  */
-export async function runIngestJob(name: IngestJobName, log: (m: string) => void): Promise<IngestSummary> {
+export async function runIngestJob(
+  name: IngestJobName,
+  log: (m: string) => void,
+): Promise<IngestSummary> {
   let summary: IngestSummary;
   if (name === "ingest-ads") {
     const client = new MetaAdLibraryClient({
       accessToken: process.env["META_ACCESS_TOKEN"],
       graphVersion: process.env["META_GRAPH_VERSION"] || undefined,
     });
-    if (!client.configured) log("no ingestion credentials configured (META_ACCESS_TOKEN); recording a FAILED run");
+    if (!client.configured)
+      log("no ingestion credentials configured (META_ACCESS_TOKEN); recording a FAILED run");
     // Look back one year: commercial ads are only retained that long in the archive.
     const deliveryDateMin = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
-    summary = await runIngestAds(client, prismaIngestDb, { countries: adCountries(), deliveryDateMin, log });
+    summary = await runIngestAds(client, prismaIngestDb, {
+      countries: adCountries(),
+      deliveryDateMin,
+      log,
+    });
   } else {
     const client = new ShopifyStorefrontClient({
       userAgent: process.env["SCRAPER_USER_AGENT"] || undefined,
@@ -44,6 +58,8 @@ export async function runIngestJob(name: IngestJobName, log: (m: string) => void
   }
   // Ingestion changed the live tables; drop every cached repository read.
   await cache.invalidate("stores", "ads");
-  log(`${name} ${summary.status}: ${summary.itemsSeen} seen, ${summary.itemsWritten} written${summary.error ? ` — ${summary.error}` : ""}`);
+  log(
+    `${name} ${summary.status}: ${summary.itemsSeen} seen, ${summary.itemsWritten} written${summary.error ? ` — ${summary.error}` : ""}`,
+  );
   return summary;
 }

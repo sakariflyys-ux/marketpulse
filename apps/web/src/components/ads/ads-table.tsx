@@ -5,6 +5,7 @@ import { Loader2, Megaphone } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { Metric } from "@/components/missing-value";
+import { SourceBadge } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -16,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCursorPages } from "@/hooks/use-cursor-pages";
-import { formatCompact, formatCurrency } from "@/lib/format";
+import { daysBetween, formatCompact, formatCurrency } from "@/lib/format";
 
 import { AdDetailDialog, type AdRowData } from "./ad-detail-dialog";
 import { PlatformBadge } from "./platform-badge";
@@ -49,7 +50,8 @@ export function AdsTable({
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-28">Platform</TableHead>
               <TableHead>Headline</TableHead>
-              <TableHead className="hidden md:table-cell">Store</TableHead>
+              <TableHead className="hidden md:table-cell">Advertiser</TableHead>
+              <TableHead className="text-right">Days running</TableHead>
               <TableHead className="text-right">Engagement</TableHead>
               <TableHead className="text-right">Spend est.</TableHead>
               <TableHead className="hidden text-right lg:table-cell">Impressions</TableHead>
@@ -77,8 +79,18 @@ export function AdsTable({
                 <TableCell className="max-w-[28rem] truncate font-medium whitespace-normal">
                   {ad.headline}
                 </TableCell>
-                <TableCell className="hidden max-w-48 truncate text-muted-foreground md:table-cell">
-                  {ad.store?.name ?? ad.pageName ?? "—"}
+                <TableCell className="hidden max-w-48 md:table-cell">
+                  <span className="block truncate text-muted-foreground">
+                    {ad.store?.name ?? ad.pageName ?? "—"}
+                  </span>
+                  <SourceBadge source={ad.source} className="mt-0.5 px-1.5 py-0 text-[10px]" />
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <Metric
+                    value={daysBetween(ad.firstSeenAt, ad.lastSeenAt)}
+                    format={(v) => `${v}d${ad.active ? "" : " · ended"}`}
+                    reason="adSightings"
+                  />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   <Metric
@@ -98,7 +110,7 @@ export function AdsTable({
             {loading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`} className="hover:bg-transparent">
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 7 }).map((_, j) => (
                       <TableCell
                         key={j}
                         className={j >= 2 && j !== 3 && j !== 4 ? "hidden md:table-cell" : ""}
@@ -144,7 +156,8 @@ export function AdsTableSkeleton({ rows = 10 }: { rows?: number }) {
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-28">Platform</TableHead>
             <TableHead>Headline</TableHead>
-            <TableHead className="hidden md:table-cell">Store</TableHead>
+            <TableHead className="hidden md:table-cell">Advertiser</TableHead>
+            <TableHead className="text-right">Days running</TableHead>
             <TableHead className="text-right">Engagement</TableHead>
             <TableHead className="text-right">Spend est.</TableHead>
             <TableHead className="hidden text-right lg:table-cell">Impressions</TableHead>
@@ -161,6 +174,9 @@ export function AdsTableSkeleton({ rows = 10 }: { rows?: number }) {
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 <Skeleton className="h-4 w-32" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="ml-auto h-4 w-10" />
               </TableCell>
               <TableCell>
                 <Skeleton className="ml-auto h-4 w-12" />

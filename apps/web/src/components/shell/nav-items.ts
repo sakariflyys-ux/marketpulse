@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bookmark,
   Compass,
   LayoutDashboard,
@@ -21,4 +22,5 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/ads", label: "Ad Library", icon: Megaphone },
   { href: "/saved", label: "Saved", icon: Bookmark },
   { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/ingest", label: "Ingestion", icon: Activity },
 ];

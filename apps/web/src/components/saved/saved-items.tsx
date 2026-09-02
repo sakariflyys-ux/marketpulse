@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import type { SavedItemWithRef } from "@synergilon/db/services";
 
 import { PlatformBadge } from "@/components/ads/platform-badge";
+import { SourceBadge } from "@/components/source-badge";
 import { EmptyState } from "@/components/empty-state";
 import type { FolderTreeNode } from "@/components/folders/folder-tree";
 import { StoreLogo } from "@/components/stores/store-logo";
@@ -209,9 +210,10 @@ function ItemBody({ item }: { item: SavedItemData }) {
                 ? ` · ~${formatCurrency(s.revenueEstimate)}/mo (est.)`
                 : ""}
           </p>
-          <Badge variant="secondary" className="mt-1">
-            {s.category}
-          </Badge>
+          <div className="mt-1 flex flex-wrap gap-1">
+            <Badge variant="secondary">{s.category}</Badge>
+            <SourceBadge source={s.source} />
+          </div>
         </div>
       </div>
     );
@@ -238,7 +240,10 @@ function ItemBody({ item }: { item: SavedItemData }) {
           {a.engagementRate !== null ? ` · ${a.engagementRate.toFixed(1)}% eng` : ""}
           {a.spendEstimate !== null ? ` · ${formatCurrency(a.spendEstimate)}` : ""}
         </p>
-        <PlatformBadge platform={a.platform} className="mt-1" />
+        <div className="mt-1 flex flex-wrap gap-1">
+          <PlatformBadge platform={a.platform} />
+          <SourceBadge source={a.source} />
+        </div>
       </div>
     </div>
   );

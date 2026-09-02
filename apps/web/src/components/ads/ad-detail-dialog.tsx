@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 
 import { Missing } from "@/components/missing-value";
+import { SourceBadge } from "@/components/source-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SaveToFolderButton } from "@/components/saved/save-to-folder-dialog";
-import { formatCompact, formatCurrency, formatDate } from "@/lib/format";
+import { daysBetween, formatCompact, formatCurrency, formatDate } from "@/lib/format";
 import type { Serialized } from "@/lib/serialize";
 import type { AdSummary } from "@synergilon/db/repositories";
 
@@ -42,7 +43,12 @@ export function AdDetailDialog({ ad, onClose }: { ad: AdRowData | null; onClose:
             <DialogHeader>
               <div className="flex items-center gap-2">
                 <PlatformBadge platform={ad.platform} />
-                <span className="text-xs text-muted-foreground">{formatDate(ad.createdAt)}</span>
+                <SourceBadge source={ad.source} />
+                <span className="text-xs text-muted-foreground">
+                  {ad.firstSeenAt
+                    ? `${formatDate(ad.firstSeenAt)} → ${ad.active ? "now" : ad.lastSeenAt ? formatDate(ad.lastSeenAt) : "?"}`
+                    : formatDate(ad.createdAt)}
+                </span>
               </div>
               <DialogTitle className="pr-6 leading-snug">{ad.headline}</DialogTitle>
               <DialogDescription>
@@ -107,7 +113,17 @@ export function AdDetailDialog({ ad, onClose }: { ad: AdRowData | null; onClose:
                       )
                     }
                   />
-                  <Stat label="Call to action" value={ad.cta} />
+                  <Stat label="Call to action" value={ad.cta || <Missing reason="adMetric" />} />
+                  <Stat
+                    label="Days running"
+                    value={
+                      daysBetween(ad.firstSeenAt, ad.lastSeenAt) === null ? (
+                        <Missing reason="adSightings" />
+                      ) : (
+                        `${daysBetween(ad.firstSeenAt, ad.lastSeenAt)}d${ad.active ? " (active)" : " (ended)"}`
+                      )
+                    }
+                  />
                 </div>
                 {audience ? (
                   <div className="space-y-1.5">

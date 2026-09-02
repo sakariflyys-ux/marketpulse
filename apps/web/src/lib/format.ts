@@ -64,3 +64,11 @@ export function toQueryString(params: Record<string, string | number | undefined
   const s = sp.toString();
   return s ? `?${s}` : "";
 }
+
+/** Whole days between two sightings; null when either is unknown. */
+export function daysBetween(from: string | Date | null, to: string | Date | null): number | null {
+  if (!from || !to) return null;
+  const a = typeof from === "string" ? new Date(from) : from;
+  const b = typeof to === "string" ? new Date(to) : to;
+  return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86_400_000));
+}

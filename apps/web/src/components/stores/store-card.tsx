@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Globe } from "lucide-react";
 
 import { Metric } from "@/components/missing-value";
+import { SourceBadge } from "@/components/source-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { formatCompact, formatCurrency } from "@/lib/format";
@@ -77,6 +78,7 @@ export function StoreCard({ store }: { store: StoreCardData }) {
             )}
           </div>
           <div className="flex flex-wrap gap-1.5">
+            <SourceBadge source={store.source} />
             <Badge variant="secondary">{store.category}</Badge>
             {theme ? <Badge variant="outline">{theme}</Badge> : null}
             {apps.slice(0, 3).map((app) => (

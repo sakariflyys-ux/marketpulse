@@ -33,7 +33,11 @@ const envSchema = z.object({
   AUTH_DEV_LOGIN: optionalString,
 
   REDIS_URL: optionalString,
-  DATA_SOURCE: z.enum(["mock", "shopify"]).default("mock"),
+  DATA_SOURCE: z.enum(["mock", "live", "shopify"]).default("mock"),
+
+  META_ACCESS_TOKEN: optionalString,
+  INGEST_ADS_CRON: optionalString,
+  INGEST_STORES_CRON: optionalString,
 
   AI_PROVIDER: z.enum(["anthropic", "openai"]).default("anthropic"),
   AI_MODEL: optionalString,

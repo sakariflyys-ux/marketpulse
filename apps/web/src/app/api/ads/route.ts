@@ -17,6 +17,11 @@ const querySchema = z
     q: optionalString,
     platform: z.enum(["META", "TIKTOK", "GOOGLE"]).optional(),
     storeId: optionalString,
+    pageId: optionalString,
+    activeOnly: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
     minEngagement: optionalNumber,
     maxEngagement: optionalNumber,
     minSpend: optionalNumber,

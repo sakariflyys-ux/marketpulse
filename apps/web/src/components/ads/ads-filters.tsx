@@ -17,6 +17,7 @@ import {
 const ALL = "__all__";
 
 export const AD_SORTS = [
+  { value: "longest_running", label: "Longest running" },
   { value: "engagement", label: "Engagement" },
   { value: "spend", label: "Spend estimate" },
   { value: "impressions", label: "Impressions" },
@@ -24,13 +25,13 @@ export const AD_SORTS = [
   { value: "relevance", label: "Relevance" },
 ] as const;
 
-export function AdsFilters() {
+export function AdsFilters({ defaultSort = "engagement" }: { defaultSort?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const q = params.get("q") ?? "";
   const platform = params.get("platform") ?? "";
-  const sort = params.get("sort") ?? (q ? "relevance" : "engagement");
+  const sort = params.get("sort") ?? (q ? "relevance" : defaultSort);
   const minEngagement = params.get("minEngagement") ?? "";
   const storeId = params.get("storeId") ?? "";
   const [search, setSearch] = React.useState(q);
