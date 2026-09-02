@@ -10,6 +10,7 @@ import {
   parseQuery,
   withErrorHandling,
 } from "@/lib/api";
+import { withRateLimit } from "@/lib/rate-limit";
 
 const querySchema = z
   .object({
@@ -43,8 +44,10 @@ const querySchema = z
  * GET /api/stores — paginated, filterable, sortable store list.
  * Response: `{ data: StoreSummary[], nextCursor: string | null }`.
  */
-export const GET = withErrorHandling(async (request) => {
-  const params = parseQuery(querySchema, request.url);
-  const page = await getRepositories().stores.list(params);
-  return NextResponse.json(page);
-});
+export const GET = withRateLimit(
+  withErrorHandling(async (request) => {
+    const params = parseQuery(querySchema, request.url);
+    const page = await getRepositories().stores.list(params);
+    return NextResponse.json(page);
+  }),
+);

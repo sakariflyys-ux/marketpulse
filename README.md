@@ -6,7 +6,7 @@ Market intelligence for Shopify stores and paid-social creatives (a Trendtrack.i
 | --------------------- | ---------------------------------------------------------------------- |
 | `apps/web`            | Next.js (App Router) UI + Route Handlers, Auth.js, Tailwind, shadcn/ui |
 | `packages/db`         | Prisma schema, migrations, seed, shared Prisma client                  |
-| `packages/worker`     | pg-boss job runner (snapshot drift) — Phase 6                          |
+| `packages/worker`     | pg-boss job runner: daily snapshot drift + cache invalidation          |
 | `packages/mcp-server` | Stdio MCP server exposing search/trending/insights tools               |
 
 ## Prerequisites
@@ -29,43 +29,45 @@ pnpm web:dev                    # http://localhost:3000
 
 ## Scripts (repo root)
 
-| Command                  | Description                                  |
-| ------------------------ | -------------------------------------------- |
-| `pnpm dev`               | All workspaces in dev mode (via Turbo)       |
-| `pnpm web:dev`           | Only the Next.js app                         |
-| `pnpm build`             | Build everything                             |
-| `pnpm lint`              | ESLint across workspaces                     |
-| `pnpm typecheck`         | `tsc --noEmit` across workspaces             |
-| `pnpm format`            | Prettier write (`format:check` to verify)    |
-| `pnpm db:up` / `db:down` | Start / stop Postgres via Docker Compose     |
-| `pnpm db:migrate`        | Create/apply migrations in development       |
-| `pnpm db:deploy`         | Apply pending migrations (production)        |
-| `pnpm db:reset`          | Drop, re-migrate and re-seed                 |
-| `pnpm db:seed`           | Seed mock data (`SEED_SCALE=small\|large`)   |
-| `pnpm db:studio`         | Prisma Studio                                |
-| `pnpm worker:dev`        | Run the worker daemon (Phase 6)              |
-| `pnpm worker:run-once`   | Run the snapshot job once and exit (Phase 6) |
-| `pnpm mcp:dev`           | Run the MCP server over stdio                |
+| Command                  | Description                                |
+| ------------------------ | ------------------------------------------ |
+| `pnpm dev`               | All workspaces in dev mode (via Turbo)     |
+| `pnpm web:dev`           | Only the Next.js app                       |
+| `pnpm build`             | Build everything                           |
+| `pnpm lint`              | ESLint across workspaces                   |
+| `pnpm typecheck`         | `tsc --noEmit` across workspaces           |
+| `pnpm format`            | Prettier write (`format:check` to verify)  |
+| `pnpm db:up` / `db:down` | Start / stop Postgres via Docker Compose   |
+| `pnpm db:migrate`        | Create/apply migrations in development     |
+| `pnpm db:deploy`         | Apply pending migrations (production)      |
+| `pnpm db:reset`          | Drop, re-migrate and re-seed               |
+| `pnpm db:seed`           | Seed mock data (`SEED_SCALE=small\|large`) |
+| `pnpm db:studio`         | Prisma Studio                              |
+| `pnpm worker:dev`        | Run the worker daemon (pg-boss schedule)   |
+| `pnpm worker:run-once`   | Run the snapshot job once and exit         |
+| `pnpm mcp:dev`           | Run the MCP server over stdio              |
 
 ## Environment variables
 
 One `.env` at the repo root is shared by every workspace (`apps/web` loads it from `next.config.ts`, the Node packages via `@marketpulse/db/load-env`). See [`.env.example`](.env.example) for the full documented list.
 
-| Variable                                | Required | Purpose                                                               |
-| --------------------------------------- | -------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`                          | yes      | Postgres connection string                                            |
-| `SEED_SCALE`                            | no       | `small` (default) or `large`                                          |
-| `AUTH_SECRET`                           | prod     | Auth.js secret (`openssl rand -base64 32`)                            |
-| `AUTH_URL`, `AUTH_TRUST_HOST`           | no       | Needed behind a proxy / non-localhost host                            |
-| `AUTH_GITHUB_ID` + `AUTH_GITHUB_SECRET` | no       | Enables GitHub OAuth                                                  |
-| `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET` | no       | Enables Google OAuth                                                  |
-| `AUTH_RESEND_KEY` + `AUTH_EMAIL_FROM`   | no       | Enables email magic links via Resend                                  |
-| `AUTH_DEV_LOGIN`                        | no       | `true` enables the local "Dev login" button (never in production)     |
-| `REDIS_URL`                             | no       | Upstash/Redis for caching + rate limiting; no-ops when unset          |
-| `DATA_SOURCE`                           | no       | `mock` (default) or `shopify` — selects the repository implementation |
-| `MCP_USER_ID`                           | no       | Default user for MCP `save_to_folder`                                 |
-| `AI_PROVIDER`, `AI_MODEL`               | no       | Chat vendor (`anthropic` default, or `openai`) and model override     |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`  | no       | Enables `/chat`; without a key the page shows a disabled state        |
+| Variable                                      | Required | Purpose                                                               |
+| --------------------------------------------- | -------- | --------------------------------------------------------------------- |
+| `DATABASE_URL`                                | yes      | Postgres connection string                                            |
+| `SEED_SCALE`                                  | no       | `small` (default) or `large`                                          |
+| `AUTH_SECRET`                                 | prod     | Auth.js secret (`openssl rand -base64 32`)                            |
+| `AUTH_URL`, `AUTH_TRUST_HOST`                 | no       | Needed behind a proxy / non-localhost host                            |
+| `AUTH_GITHUB_ID` + `AUTH_GITHUB_SECRET`       | no       | Enables GitHub OAuth                                                  |
+| `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET`       | no       | Enables Google OAuth                                                  |
+| `AUTH_RESEND_KEY` + `AUTH_EMAIL_FROM`         | no       | Enables email magic links via Resend                                  |
+| `AUTH_DEV_LOGIN`                              | no       | `true` enables the local "Dev login" button (never in production)     |
+| `REDIS_URL`                                   | no       | Upstash/Redis for caching + rate limiting; no-ops when unset          |
+| `SNAPSHOT_CRON`, `SNAPSHOT_MAX_DRIFT_PCT`     | no       | Worker schedule (UTC cron, default `0 3 * * *`) and max drift (±5%)   |
+| `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS` | no       | Public API limit per IP (default 60 / 60s); needs Redis               |
+| `DATA_SOURCE`                                 | no       | `mock` (default) or `shopify` — selects the repository implementation |
+| `MCP_USER_ID`                                 | no       | Default user for MCP `save_to_folder`                                 |
+| `AI_PROVIDER`, `AI_MODEL`                     | no       | Chat vendor (`anthropic` default, or `openai`) and model override     |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`        | no       | Enables `/chat`; without a key the page shows a disabled state        |
 
 Each auth provider turns on only when its full pair of variables is set.
 
@@ -144,14 +146,33 @@ curl "http://localhost:3000/api/stores?q=group&sort=relevance&limit=5"
 curl "http://localhost:3000/api/ads?platform=TIKTOK&minEngagement=5&sort=spend"
 ```
 
-## Docker image (web)
+## Worker
+
+`packages/worker` runs on **pg-boss** (queue tables live in the same Postgres under the `pgboss` schema, no extra infra).
+
+- `pnpm worker:dev` — daemon. Registers the `store-snapshot` queue, schedules it with `SNAPSHOT_CRON` (5-field cron, UTC, default `0 3 * * *`), and works it. Re-registering on restart replaces the schedule, so restarts are idempotent.
+- `pnpm worker:run-once` — runs the job immediately and exits (manual trigger).
+
+The job drifts every store's `monthlyRevenue` / `monthlyTraffic` by an independent random factor within `±SNAPSHOT_MAX_DRIFT_PCT` (default 5%, traffic slightly less correlated), stamps `lastScrapedAt`, and writes one new `StoreSnapshot` per store — all in a single SQL statement (`UPDATE … RETURNING` feeding an `INSERT` via CTE), so 10k stores is one round trip. Afterwards it calls `cache.invalidate("stores", "ads")`, which bumps the Redis namespace versions so the next read repopulates.
+
+## Rate limiting
+
+When `REDIS_URL` is set, public API routes (`/api/stores*`, `/api/ads*`) get a fixed-window limit per client IP (`RATE_LIMIT_MAX` per `RATE_LIMIT_WINDOW_SECONDS`, default 60/min) via `INCR` + `EXPIRE`. Responses carry `X-RateLimit-Limit` / `X-RateLimit-Remaining`; over the limit returns `429 RATE_LIMITED` with `Retry-After`. Without Redis (or if Redis errors) requests pass through. Session-gated routes (folders, saved, chat) are not rate limited by IP since they are already per-user.
+
+## Docker images
 
 ```bash
 docker build -f apps/web/Dockerfile -t marketpulse-web .
 docker run --rm -p 3000:3000 --env-file .env -e AUTH_TRUST_HOST=true marketpulse-web
+
+docker build -f packages/worker/Dockerfile -t marketpulse-worker .
+docker run --rm --env-file .env marketpulse-worker           # daemon
+docker run --rm --env-file .env marketpulse-worker --once    # single run
+# or, against the compose Postgres:
+docker compose --profile worker up -d
 ```
 
-Deployment itself is out of scope; the worker image lands with Phase 6.
+Deployment itself is out of scope.
 
 ## MCP server & chat
 
@@ -206,4 +227,4 @@ Vercel AI SDK (`streamText` + `useChat`) with the same tools, up to 6 tool steps
 3. **Discovery UI** — `/discover`, `/ads`, `/store/[domain]` ✅
 4. **Folders & saved items** — nested folders, sidebar tree, drag-and-drop, `/saved` ✅
 5. **MCP server & `/chat`** — shared tools, stdio MCP server, AI SDK chat ✅
-6. Worker, cache invalidation, rate limiting
+6. **Worker, cache invalidation, rate limiting** — pg-boss daily snapshot drift, Redis-backed API limits ✅

@@ -23,10 +23,15 @@ function getClient(): Client | null {
     return client;
   }
   const redis = new Redis(url, {
-    lazyConnect: true,
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
+    // Commands issued before the socket is up wait in the offline queue
+    // (short-lived processes like the worker hit this on their first call);
+    // once connected they flush, and if the connection fails they reject and
+    // the callers below fall back to passthrough.
     connectTimeout: 2_000,
+    maxRetriesPerRequest: 1,
+    // Give up reconnecting after a few attempts so a dead Redis doesn't spam
+    // logs or keep the event loop alive; the client stays in passthrough mode.
+    retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 1_000)),
     // Upstash and most managed Redis require TLS on rediss:// URLs; ioredis
     // enables it from the scheme automatically.
   });
@@ -36,7 +41,6 @@ function getClient(): Client | null {
       console.warn(`[cache] Redis unavailable, falling back to passthrough: ${err.message}`);
     }
   });
-  void redis.connect().catch(() => undefined);
   client = redis;
   return client;
 }
@@ -54,6 +58,15 @@ async function namespaceVersion(redis: Client, ns: string): Promise<string> {
 
 function fullKey(ns: string, version: string, key: string): string {
   return `mp:${ns}:v${version}:${key}`;
+}
+
+/**
+ * Shared ioredis client (null when REDIS_URL is unset). Exposed so other
+ * Redis-backed features (rate limiting) reuse the same connection and the
+ * same "absent Redis means passthrough" semantics.
+ */
+export function getRedis(): Redis | null {
+  return getClient();
 }
 
 export const cache = {
@@ -116,10 +129,16 @@ export const cache = {
   },
 
   async disconnect(): Promise<void> {
-    if (client) {
-      await client.quit().catch(() => undefined);
-      client = undefined;
-    }
+    if (!client) return;
+    const redis = client;
+    client = undefined;
+    // QUIT only completes on a live connection; fall back to a hard close so
+    // short-lived processes exit promptly even when Redis never came up.
+    await Promise.race([
+      redis.quit().catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 1_000)),
+    ]);
+    redis.disconnect();
   },
 };
 

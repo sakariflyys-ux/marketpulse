@@ -10,6 +10,7 @@ import {
   parseQuery,
   withErrorHandling,
 } from "@/lib/api";
+import { withRateLimit } from "@/lib/rate-limit";
 
 const querySchema = z
   .object({
@@ -43,8 +44,10 @@ const querySchema = z
  * GET /api/ads — paginated, filterable, sortable ad list.
  * Response: `{ data: AdSummary[], nextCursor: string | null }`.
  */
-export const GET = withErrorHandling(async (request) => {
-  const params = parseQuery(querySchema, request.url);
-  const page = await getRepositories().ads.list(params);
-  return NextResponse.json(page);
-});
+export const GET = withRateLimit(
+  withErrorHandling(async (request) => {
+    const params = parseQuery(querySchema, request.url);
+    const page = await getRepositories().ads.list(params);
+    return NextResponse.json(page);
+  }),
+);

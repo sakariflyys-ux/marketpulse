@@ -27,5 +27,19 @@ services:
     ports:
       - "6379:6379"
 
+  # Optional: run the snapshot worker in Docker against the compose Postgres.
+  # docker compose --profile worker up -d
+  worker:
+    build:
+      context: .
+      dockerfile: packages/worker/Dockerfile
+    profiles: ["worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/marketpulse?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
