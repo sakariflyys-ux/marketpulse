@@ -1,0 +1,31 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "title": "Classic Linen Shirt",
+      "handle": "classic-linen-shirt",
+      "product_type": "Shirts",
+      "images": [{ "src": "https://cdn.shopify.com/s/files/1/0001/products/shirt.jpg" }],
+      "variants": [
+        { "price": "89.00", "available": true },
+        { "price": "95.00", "available": true }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Linen Trousers",
+      "handle": "linen-trousers",
+      "product_type": "Trousers",
+      "images": [],
+      "variants": [{ "price": "120.00" }]
+    },
+    {
+      "id": 3,
+      "title": "Gift Card",
+      "handle": "gift-card",
+      "product_type": "Shirts",
+      "variants": [{ "price": "25.00" }, { "price": "250.00" }]
+    },
+    { "id": 4, "title": "Broken Product", "variants": [{ "price": "not-a-number" }] }
+  ]
+}

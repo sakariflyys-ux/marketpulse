@@ -1,0 +1,15 @@
+{
+  "id": "9876543210",
+  "ad_creation_time": "2026-03-10T09:15:00+0000",
+  "ad_creative_bodies": ["Vote on Sunday."],
+  "ad_creative_link_titles": [],
+  "ad_delivery_start_time": "2026-03-11",
+  "ad_delivery_stop_time": "2026-03-30",
+  "ad_snapshot_url": "https://www.facebook.com/ads/archive/render_ad/?id=9876543210",
+  "currency": "EUR",
+  "impressions": { "lower_bound": "10000", "upper_bound": "14999" },
+  "spend": { "lower_bound": "100", "upper_bound": "199" },
+  "page_id": "555",
+  "page_name": "Some Party",
+  "publisher_platforms": ["facebook"]
+}

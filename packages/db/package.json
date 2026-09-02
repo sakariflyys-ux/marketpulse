@@ -10,7 +10,10 @@
     "./repositories": "./src/repositories/index.ts",
     "./cache": "./src/cache.ts",
     "./services": "./src/services/index.ts",
-    "./tools": "./src/tools/index.ts"
+    "./tools": "./src/tools/index.ts",
+    "./sources/meta": "./src/sources/meta/index.ts",
+    "./sources/shopify": "./src/sources/shopify/index.ts",
+    "./sources/http": "./src/sources/http.ts"
   },
   "scripts": {
     "generate": "prisma generate",

@@ -1,0 +1,27 @@
+{
+  "id": "1234567890123456",
+  "ad_creation_time": "2026-06-01",
+  "ad_creative_bodies": ["Summer sale: 20% off all linen shirts. Free shipping in the EU."],
+  "ad_creative_link_captions": ["example-linen.com"],
+  "ad_creative_link_descriptions": ["Breathable linen, made to last."],
+  "ad_creative_link_titles": ["Linen shirts – 20% off"],
+  "ad_delivery_start_time": "2026-06-02",
+  "ad_snapshot_url": "https://www.facebook.com/ads/archive/render_ad/?id=1234567890123456&access_token=TOKEN",
+  "bylines": "Example Linen Oy",
+  "currency": "EUR",
+  "languages": ["en", "fi"],
+  "page_id": "100200300",
+  "page_name": "Example Linen",
+  "publisher_platforms": ["facebook", "instagram"],
+  "eu_total_reach": "48213",
+  "target_ages": ["25", "54"],
+  "target_gender": "Women",
+  "target_locations": [
+    { "name": "Finland", "type": "country", "excluded": false },
+    { "name": "Sweden", "type": "country", "excluded": false },
+    { "name": "Åland", "type": "region", "excluded": true }
+  ],
+  "beneficiary_payers": [
+    { "beneficiary": "Example Linen Oy", "payer": "Example Linen Oy", "current": true }
+  ]
+}

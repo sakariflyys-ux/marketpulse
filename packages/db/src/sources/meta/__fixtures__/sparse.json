@@ -1,0 +1,7 @@
+{
+  "id": "42",
+  "page_id": "7",
+  "ad_delivery_start_time": "not a date",
+  "impressions": { "lower_bound": "abc" },
+  "eu_total_reach": "-5"
+}
