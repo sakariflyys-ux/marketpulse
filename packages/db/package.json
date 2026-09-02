@@ -24,7 +24,8 @@
     "seed": "tsx src/seed.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:tracked": "tsx src/seed-tracked.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

@@ -8,7 +8,9 @@
     "run-once": "tsx src/index.ts --once",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ingest-ads": "tsx src/index.ts --once --job ingest-ads",
+    "ingest-stores": "tsx src/index.ts --once --job ingest-stores"
   },
   "dependencies": {
     "@synergilon/db": "workspace:*",

@@ -1,9 +1,12 @@
 /**
  * Synergilon worker.
  *
- *   pnpm worker:dev        — daemon: pg-boss schedules the snapshot job
- *                            (SNAPSHOT_CRON, default 03:00 UTC daily) and works it
- *   pnpm worker:run-once   — run the snapshot job immediately and exit
+ *   pnpm worker:dev            — daemon: pg-boss schedules the snapshot job
+ *                                (SNAPSHOT_CRON, default 03:00 UTC daily) plus the
+ *                                ingest-ads / ingest-stores jobs (INGEST_*_CRON)
+ *   pnpm worker:run-once       — run the snapshot job immediately and exit
+ *   pnpm worker:ingest-ads     — run the Meta Ad Library ingestion once and exit
+ *   pnpm worker:ingest-stores  — run the Shopify storefront ingestion once and exit
  *
  * pg-boss keeps its queue in the same Postgres (schema "pgboss"), so no
  * extra infrastructure is needed.
@@ -12,6 +15,7 @@ import "@synergilon/db/load-env";
 import { PgBoss } from "pg-boss";
 import { prisma } from "@synergilon/db";
 import { cache } from "@synergilon/db/cache";
+import { INGEST_JOBS, runIngestJob, type IngestJobName } from "./ingest-jobs";
 import { runSnapshotJob } from "./snapshot-job";
 
 const QUEUE = "store-snapshot";
@@ -22,10 +26,24 @@ function log(message: string): void {
   console.log(`[worker ${new Date().toISOString()}] ${message}`);
 }
 
+function jobArg(): IngestJobName | "snapshot" {
+  const idx = process.argv.indexOf("--job");
+  const value = idx === -1 ? "snapshot" : process.argv[idx + 1];
+  if (value === "snapshot" || value === "ingest-ads" || value === "ingest-stores") return value;
+  throw new Error(`Unknown --job "${value}" (expected snapshot | ingest-ads | ingest-stores)`);
+}
+
 async function runOnce(): Promise<void> {
-  log("running snapshot job once");
-  const result = await runSnapshotJob();
-  log(`done: ${result.snapshots} snapshots, drift ±${result.maxDriftPct}%, ${result.durationMs}ms`);
+  const job = jobArg();
+  if (job === "snapshot") {
+    log("running snapshot job once");
+    const result = await runSnapshotJob();
+    log(`done: ${result.snapshots} snapshots, drift ±${result.maxDriftPct}%, ${result.durationMs}ms`);
+    return;
+  }
+  log(`running ${job} once`);
+  const summary = await runIngestJob(job, log);
+  if (summary.status === "FAILED") process.exitCode = 1;
 }
 
 async function daemon(connectionString: string): Promise<void> {
@@ -50,6 +68,25 @@ async function daemon(connectionString: string): Promise<void> {
     );
     return result;
   });
+
+  for (const job of INGEST_JOBS) {
+    await boss.createQueue(job.name);
+    const jobCron = process.env[job.cronEnv] || job.defaultCron;
+    await boss.schedule(job.name, jobCron, null, { tz: "UTC", key: SCHEDULE_KEY });
+    log(`scheduled "${job.name}" with cron "${jobCron}" (UTC)`);
+    await boss.work(job.name, async (jobs) => {
+      const ids = jobs.map((j) => j.id).join(", ");
+      log(`job(s) ${ids}: ${job.name} starting`);
+      // runIngestJob records its own outcome; a throw here would only make
+      // pg-boss retry a run that is already logged as FAILED.
+      try {
+        return await runIngestJob(job.name, log);
+      } catch (err) {
+        log(`${job.name} crashed outside the run wrapper: ${String(err)}`);
+        return null;
+      }
+    });
+  }
 
   log("daemon ready");
 

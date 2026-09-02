@@ -24,7 +24,10 @@
     "worker:dev": "pnpm --filter @synergilon/worker dev",
     "worker:run-once": "pnpm --filter @synergilon/worker run-once",
     "mcp:dev": "pnpm --filter @synergilon/mcp-server dev",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "worker:ingest-ads": "pnpm --filter @synergilon/worker ingest-ads",
+    "worker:ingest-stores": "pnpm --filter @synergilon/worker ingest-stores",
+    "db:seed:tracked": "pnpm --filter @synergilon/db seed:tracked"
   },
   "devDependencies": {
     "prettier": "^3.9.6",
