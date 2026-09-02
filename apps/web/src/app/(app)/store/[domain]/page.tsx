@@ -10,7 +10,7 @@ import { PlatformBadge } from "@/components/ads/platform-badge";
 import { PageHeader } from "@/components/page-header";
 import { GrowthIndicator } from "@/components/stores/growth-indicator";
 import { RevenueChart } from "@/components/stores/revenue-chart";
-import { SaveToFolderButton } from "@/components/stores/save-to-folder-button";
+import { SaveToFolderButton } from "@/components/saved/save-to-folder-dialog";
 import { StoreLogo } from "@/components/stores/store-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,7 +75,7 @@ export default async function StorePage({ params }: { params: Params }) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={store.name} description={store.description ?? undefined}>
-        <SaveToFolderButton itemType="STORE" itemId={store.id} />
+        <SaveToFolderButton itemType="STORE" itemId={store.id} label={store.name} />
       </PageHeader>
 
       <div className="flex flex-wrap items-center gap-3">

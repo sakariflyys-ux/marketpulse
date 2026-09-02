@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { AlertTriangle, Mail } from "lucide-react";
+import { AlertTriangle, Mail, Wrench } from "lucide-react";
 
 import { auth, enabledProviders } from "@/auth";
+import { isDevLoginEnabled } from "@/lib/env";
 import { signInWithEmail, signInWithProvider } from "@/components/auth/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,8 +42,9 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default async function LoginPage() {
-  const session = await auth();
+  const [session, headerStore] = await Promise.all([auth(), headers()]);
   if (session?.user) redirect("/dashboard");
+  const devLogin = isDevLoginEnabled(headerStore.get("host"));
 
   const oauth = enabledProviders.filter((p) => p.type !== "email");
   const email = enabledProviders.find((p) => p.type === "email");
@@ -97,7 +100,17 @@ export default async function LoginPage() {
             </form>
           ) : null}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-col items-start gap-2">
+          {devLogin ? (
+            // A plain form submit so the API route's redirect + cookie apply
+            // (a <Link> would do a client-side RSC navigation instead).
+            <form action="/api/auth/dev-login" method="get" className="w-full">
+              <Button type="submit" variant="secondary" size="sm" className="w-full">
+                <Wrench />
+                Dev login (local only)
+              </Button>
+            </form>
+          ) : null}
           <Button asChild variant="link" size="sm" className="px-0">
             <Link href="/dashboard">Continue without signing in</Link>
           </Button>

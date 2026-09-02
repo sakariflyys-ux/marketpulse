@@ -29,6 +29,8 @@ const envSchema = z.object({
   AUTH_GOOGLE_SECRET: optionalString,
   AUTH_RESEND_KEY: optionalString,
   AUTH_EMAIL_FROM: optionalString,
+  /** "true" enables /api/auth/dev-login outside production. */
+  AUTH_DEV_LOGIN: optionalString,
 
   REDIS_URL: optionalString,
   DATA_SOURCE: z.enum(["mock", "shopify"]).default("mock"),
@@ -46,3 +48,17 @@ function loadEnv(): Env {
 }
 
 export const env: Env = loadEnv();
+
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * Local dev sign-in without OAuth. Requires AUTH_DEV_LOGIN=true, and in a
+ * production build additionally requires the request to come from localhost,
+ * so a leaked flag on a deployed host still cannot enable it.
+ */
+export function isDevLoginEnabled(host?: string | null): boolean {
+  if (env.AUTH_DEV_LOGIN !== "true") return false;
+  if (env.NODE_ENV !== "production") return true;
+  const hostname = (host ?? "").split(":")[0] ?? "";
+  return LOCAL_HOSTS.has(hostname);
+}

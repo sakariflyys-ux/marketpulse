@@ -25,7 +25,7 @@ pnpm db:seed                    # SEED_SCALE=small -> 100 stores / 500 ads
 pnpm web:dev                    # http://localhost:3000
 ```
 
-`/` redirects to `/dashboard`. With no auth provider configured, `/login` shows a "no auth providers configured" state and the app is usable anonymously.
+`/` redirects to `/dashboard`. With no auth provider configured, `/login` shows a "no auth providers configured" state and the browsing pages work anonymously. Folders and saved items need a signed-in user: either configure a provider, or keep `AUTH_DEV_LOGIN=true` (the `.env.example` default) and use the **Dev login** button on `/login`, which creates a local user with a real database session. The dev login is disabled in production builds.
 
 ## Scripts (repo root)
 
@@ -60,6 +60,7 @@ One `.env` at the repo root is shared by every workspace (`apps/web` loads it fr
 | `AUTH_GITHUB_ID` + `AUTH_GITHUB_SECRET` | no       | Enables GitHub OAuth                                                  |
 | `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET` | no       | Enables Google OAuth                                                  |
 | `AUTH_RESEND_KEY` + `AUTH_EMAIL_FROM`   | no       | Enables email magic links via Resend                                  |
+| `AUTH_DEV_LOGIN`                        | no       | `true` enables the local "Dev login" button (never in production)     |
 | `REDIS_URL`                             | no       | Upstash/Redis for caching + rate limiting; no-ops when unset          |
 | `DATA_SOURCE`                           | no       | `mock` (default) or `shopify` — selects the repository implementation |
 | `MCP_USER_ID`                           | no       | Default user for MCP `save_to_folder`                                 |
@@ -108,7 +109,11 @@ pnpm db:seed          # SEED_SCALE=large for a realistic dataset
 - **Ad Library** (`/ads`): filterable table (search, platform, minimum engagement, sort) with "Load more" pagination. Clicking a row opens a detail modal with the creative, copy, metrics and target audience. `?storeId=` scopes it to one store.
 - **Store detail** (`/store/[domain]`): stats, a Recharts revenue-over-time line built from `StoreSnapshot`, top product, tech stack, and the store's most recent ads. The "Save to folder" button is wired in Phase 4.
 
+- **Folders & saved items**: a Notion-style tree in the sidebar (expand/collapse, inline rename via double-click or the row menu, nested create, delete) that doubles as a drop target. "Save to folder" on a store page or in the ad modal opens a picker with inline folder creation and notes. `/saved` lists everything, or one folder with breadcrumbs and subfolders; cards can be dragged onto sidebar folders (`@dnd-kit`), moved via a dropdown, annotated, or removed.
+
 Pages render the first page on the server through the repositories and hand it to a client component, which fetches subsequent pages from the JSON API. Every list has a loading skeleton and an empty state.
+
+Folder and saved-item logic lives in `packages/db/src/services/` (not the repository layer, since these are the app's own tables rather than an external data source) so the API routes, server pages and the MCP `save_to_folder` tool share one implementation, including `ensureFolderPath("Competitors/Skincare")`.
 
 ## API
 
@@ -121,6 +126,16 @@ All routes validate query params with Zod and return errors as `{ error: { code,
 | `GET /api/stores/:domain`  | Store detail with all snapshots, 20 most recent ads and `adCount`                                                                                                                               |
 | `GET /api/ads`             | `q`, `platform=META\|TIKTOK\|GOOGLE`, `storeId`, `minEngagement`, `maxEngagement`, `minSpend`, `maxSpend`, `sort=engagement\|spend\|impressions\|newest\|relevance`, `order`, `limit`, `cursor` |
 | `GET /api/ads/:id`         | Single ad with its store reference                                                                                                                                                              |
+| `GET /api/folders/tree`    | Signed-in user's nested folders with per-folder saved counts                                                                                                                                    |
+| `POST /api/folders`        | `{ name, parentId? }` → 201. 409 on duplicate name within the same parent                                                                                                                       |
+| `PATCH /api/folders/:id`   | `{ name?, parentId? }` (rename / move; `parentId: null` = root). Rejects cycles                                                                                                                 |
+| `DELETE /api/folders/:id`  | Deletes subfolders and their saved items → 204                                                                                                                                                  |
+| `GET /api/saved`           | `?folderId=` → items with store/ad resolved; `?itemType=&itemId=` → folders containing that item                                                                                                |
+| `POST /api/saved`          | `{ itemType, itemId, folderId, notes? }` → 201. 409 if already in that folder                                                                                                                   |
+| `PATCH /api/saved/:id`     | `{ folderId?, notes? }` (move / annotate)                                                                                                                                                       |
+| `DELETE /api/saved/:id`    | → 204                                                                                                                                                                                           |
+
+Folder and saved routes require a session and return 401 `UNAUTHORIZED` otherwise.
 
 ```bash
 curl "http://localhost:3000/api/stores?q=group&sort=relevance&limit=5"
@@ -160,6 +175,6 @@ The Claude Desktop config snippet will be added here when the server ships:
 1. **Foundation & Auth** — monorepo, DB, seed, auth, app shell, dashboard ✅
 2. **Repositories & API** — repository pattern, FTS, cursor-paginated `/api/stores` + `/api/ads`, Redis cache ✅
 3. **Discovery UI** — `/discover`, `/ads`, `/store/[domain]` ✅
-4. Folders & saved items
+4. **Folders & saved items** — nested folders, sidebar tree, drag-and-drop, `/saved` ✅
 5. MCP server & `/chat`
 6. Worker, cache invalidation, rate limiting

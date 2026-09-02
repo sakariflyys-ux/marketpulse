@@ -2,6 +2,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { InvalidCursorError } from "@marketpulse/db/repositories";
+import { ServiceError } from "@marketpulse/db/services";
 
 /** Error envelope used by every route handler: `{ error: { code, message } }`. */
 export type ApiErrorBody = { error: { code: string; message: string; details?: unknown } };
@@ -81,6 +82,7 @@ export function withErrorHandling<Ctx>(
     } catch (err) {
       if (err instanceof ApiError) return apiError(err.status, err.code, err.message, err.details);
       if (err instanceof InvalidCursorError) return apiError(400, "INVALID_CURSOR", err.message);
+      if (err instanceof ServiceError) return apiError(err.status, err.code, err.message);
       console.error("[api]", err);
       return apiError(500, "INTERNAL_ERROR", "Something went wrong");
     }

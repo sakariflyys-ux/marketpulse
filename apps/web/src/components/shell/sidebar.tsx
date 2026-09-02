@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+import { FolderTree, type FolderTreeNode } from "@/components/folders/folder-tree";
+
 import { NAV_ITEMS } from "./nav-items";
 
 export const SIDEBAR_COOKIE = "mp:sidebar";
@@ -62,7 +64,7 @@ export function SidebarProvider({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ folders }: { folders: FolderTreeNode[] | null }) {
   const { collapsed, toggle } = useSidebar();
   const pathname = usePathname();
 
@@ -85,7 +87,7 @@ export function Sidebar() {
       </div>
       <Separator className="bg-sidebar-border" />
 
-      <nav className="flex flex-1 flex-col gap-1 p-2" aria-label="Primary">
+      <nav className="flex flex-col gap-1 p-2" aria-label="Primary">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           const link = (
@@ -122,6 +124,14 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {folders ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <FolderTree folders={folders} collapsed={collapsed} />
+        </div>
+      ) : (
+        <div className="flex-1" />
+      )}
 
       <Separator className="bg-sidebar-border" />
       <div className={cn("flex p-2", collapsed ? "justify-center" : "justify-end")}>

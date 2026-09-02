@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SaveToFolderButton } from "@/components/saved/save-to-folder-dialog";
 import { formatCompact, formatCurrency, formatDate } from "@/lib/format";
 import type { Serialized } from "@/lib/serialize";
 import type { AdSummary } from "@marketpulse/db/repositories";
@@ -95,7 +96,14 @@ export function AdDetailDialog({ ad, onClose }: { ad: AdRowData | null; onClose:
                     </div>
                   </div>
                 ) : null}
-                <div className="mt-auto flex gap-2">
+                <div className="mt-auto flex flex-wrap gap-2">
+                  <SaveToFolderButton
+                    itemType="AD"
+                    itemId={ad.id}
+                    label={ad.headline}
+                    size="sm"
+                    variant="default"
+                  />
                   <Button asChild variant="outline" size="sm">
                     <Link href={`/store/${encodeURIComponent(ad.store.shopifyDomain)}`}>
                       View store
