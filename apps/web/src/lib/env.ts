@@ -34,6 +34,11 @@ const envSchema = z.object({
 
   REDIS_URL: optionalString,
   DATA_SOURCE: z.enum(["mock", "shopify"]).default("mock"),
+
+  AI_PROVIDER: z.enum(["anthropic", "openai"]).default("anthropic"),
+  AI_MODEL: optionalString,
+  ANTHROPIC_API_KEY: optionalString,
+  OPENAI_API_KEY: optionalString,
 });
 
 export type Env = z.infer<typeof envSchema>;

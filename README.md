@@ -7,7 +7,7 @@ Market intelligence for Shopify stores and paid-social creatives (a Trendtrack.i
 | `apps/web`            | Next.js (App Router) UI + Route Handlers, Auth.js, Tailwind, shadcn/ui |
 | `packages/db`         | Prisma schema, migrations, seed, shared Prisma client                  |
 | `packages/worker`     | pg-boss job runner (snapshot drift) — Phase 6                          |
-| `packages/mcp-server` | Stdio MCP server exposing search/trending/insights tools — Phase 5     |
+| `packages/mcp-server` | Stdio MCP server exposing search/trending/insights tools               |
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ pnpm web:dev                    # http://localhost:3000
 | `pnpm db:studio`         | Prisma Studio                                |
 | `pnpm worker:dev`        | Run the worker daemon (Phase 6)              |
 | `pnpm worker:run-once`   | Run the snapshot job once and exit (Phase 6) |
-| `pnpm mcp:dev`           | Run the MCP server over stdio (Phase 5)      |
+| `pnpm mcp:dev`           | Run the MCP server over stdio                |
 
 ## Environment variables
 
@@ -64,6 +64,8 @@ One `.env` at the repo root is shared by every workspace (`apps/web` loads it fr
 | `REDIS_URL`                             | no       | Upstash/Redis for caching + rate limiting; no-ops when unset          |
 | `DATA_SOURCE`                           | no       | `mock` (default) or `shopify` — selects the repository implementation |
 | `MCP_USER_ID`                           | no       | Default user for MCP `save_to_folder`                                 |
+| `AI_PROVIDER`, `AI_MODEL`               | no       | Chat vendor (`anthropic` default, or `openai`) and model override     |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`  | no       | Enables `/chat`; without a key the page shows a disabled state        |
 
 Each auth provider turns on only when its full pair of variables is set.
 
@@ -151,9 +153,20 @@ docker run --rm -p 3000:3000 --env-file .env -e AUTH_TRUST_HOST=true marketpulse
 
 Deployment itself is out of scope; the worker image lands with Phase 6.
 
-## MCP server (Phase 5)
+## MCP server & chat
 
-The Claude Desktop config snippet will be added here when the server ships:
+Both use the **same tool implementations** in `packages/db/src/tools/index.ts` (Zod schema + `execute` over the repositories/services). The MCP server adapts them with `registerTool`; the chat route adapts them with the AI SDK's `tool()`. Add a tool once and both hosts pick it up.
+
+| Tool                  | Input                                                   | Notes                                                               |
+| --------------------- | ------------------------------------------------------- | ------------------------------------------------------------------- |
+| `search_ads`          | `query`, `platform?`, `minEngagement?`, `limit?`        | Full-text search, relevance-ranked                                  |
+| `get_trending_stores` | `limit?`, `category?`                                   | Ranked by 7-snapshot revenue growth, fallback to absolute revenue   |
+| `get_store_insights`  | `domain`                                                | Metrics, 30-day history, tech stack, top product, recent ads        |
+| `save_to_folder`      | `itemType`, `itemId`, `folderPath`, `userId?`, `notes?` | Creates missing folders in the path. MCP: `userId` or `MCP_USER_ID` |
+
+### Claude Desktop
+
+`pnpm mcp:dev` runs the server over stdio. Claude Desktop config (`claude_desktop_config.json`):
 
 ```json
 {
@@ -163,12 +176,28 @@ The Claude Desktop config snippet will be added here when the server ships:
       "args": ["--dir", "/absolute/path/to/marketpulse", "mcp:dev"],
       "env": {
         "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/marketpulse",
-        "MCP_USER_ID": "<user id>"
+        "MCP_USER_ID": "<your User.id>"
       }
     }
   }
 }
 ```
+
+The server also reads the repo-root `.env`, so the `env` block is optional when that file is filled in. `MCP_USER_ID` is the `User.id` that `save_to_folder` writes to; find it in Prisma Studio (`pnpm db:studio`).
+
+Smoke test without a client:
+
+```bash
+pnpm mcp:dev <<'JSON'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_trending_stores","arguments":{"limit":3}}}
+JSON
+```
+
+### `/chat`
+
+Vercel AI SDK (`streamText` + `useChat`) with the same tools, up to 6 tool steps per turn. The provider comes from `AI_PROVIDER` (`anthropic` by default, model `claude-opus-5`; or `openai`) and `AI_MODEL`; with no API key the page renders a disabled state. `save_to_folder` uses the signed-in user, so saving from chat requires a session.
 
 ## Roadmap
 
@@ -176,5 +205,5 @@ The Claude Desktop config snippet will be added here when the server ships:
 2. **Repositories & API** — repository pattern, FTS, cursor-paginated `/api/stores` + `/api/ads`, Redis cache ✅
 3. **Discovery UI** — `/discover`, `/ads`, `/store/[domain]` ✅
 4. **Folders & saved items** — nested folders, sidebar tree, drag-and-drop, `/saved` ✅
-5. MCP server & `/chat`
+5. **MCP server & `/chat`** — shared tools, stdio MCP server, AI SDK chat ✅
 6. Worker, cache invalidation, rate limiting

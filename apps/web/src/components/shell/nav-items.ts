@@ -20,5 +20,5 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/discover", label: "Discover", icon: Compass },
   { href: "/ads", label: "Ad Library", icon: Megaphone },
   { href: "/saved", label: "Saved", icon: Bookmark },
-  { href: "/chat", label: "Chat", icon: MessageSquare, phase: 5 },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
 ];
