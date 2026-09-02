@@ -5,7 +5,7 @@ import { Metric } from "@/components/missing-value";
 import { SourceBadge } from "@/components/source-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { formatCompact, formatCurrency } from "@/lib/format";
+import { formatCompact, formatCurrency, formatPriceRange, formatProductCount } from "@/lib/format";
 import type { Serialized } from "@/lib/serialize";
 import type { StoreSummary } from "@synergilon/db/repositories";
 
@@ -44,18 +44,13 @@ export function StoreCard({ store }: { store: StoreCardData }) {
               </div>
             ) : (
               <div>
-                <p className="text-xs text-muted-foreground">Revenue (estimate)</p>
+                <p className="text-xs text-muted-foreground">Products</p>
                 <p className="font-semibold tabular-nums">
-                  <Metric
-                    value={store.revenueEstimate}
-                    format={formatCurrency}
-                    reason="storeEstimate"
-                  />
-                  {store.revenueEstimate !== null && store.estimateConfidence ? (
-                    <span className="ml-1 text-xs font-normal text-muted-foreground">
-                      {store.estimateConfidence} conf.
-                    </span>
-                  ) : null}
+                  {store.productCount === null ? (
+                    <Metric value={null} format={String} reason="storeMeasured" />
+                  ) : (
+                    formatProductCount(store.productCount, store.productCountTruncated)
+                  )}
                 </p>
               </div>
             )}
@@ -66,13 +61,11 @@ export function StoreCard({ store }: { store: StoreCardData }) {
               </div>
             ) : (
               <div>
-                <p className="text-xs text-muted-foreground">Products</p>
+                <p className="text-xs text-muted-foreground">Price range</p>
                 <p className="font-semibold tabular-nums">
-                  <Metric
-                    value={store.productCount}
-                    format={formatCompact}
-                    reason="storeMeasured"
-                  />
+                  {formatPriceRange(store.priceMin, store.priceMax, store.currency) ?? (
+                    <Metric value={null} format={String} reason="storeMeasured" />
+                  )}
                 </p>
               </div>
             )}
@@ -80,17 +73,28 @@ export function StoreCard({ store }: { store: StoreCardData }) {
           <div className="flex flex-wrap gap-1.5">
             <SourceBadge source={store.source} />
             <Badge variant="secondary">{store.category}</Badge>
-            {theme ? <Badge variant="outline">{theme}</Badge> : null}
-            {apps.slice(0, 3).map((app) => (
-              <Badge key={app} variant="outline" className="text-muted-foreground">
-                {app}
-              </Badge>
-            ))}
-            {apps.length > 3 ? (
-              <Badge variant="outline" className="text-muted-foreground">
-                +{apps.length - 3}
-              </Badge>
-            ) : null}
+            {store.source === "mock" ? (
+              <>
+                {theme ? <Badge variant="outline">{theme}</Badge> : null}
+                {apps.slice(0, 3).map((app) => (
+                  <Badge key={app} variant="outline" className="text-muted-foreground">
+                    {app}
+                  </Badge>
+                ))}
+                {apps.length > 3 ? (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    +{apps.length - 3}
+                  </Badge>
+                ) : null}
+              </>
+            ) : (
+              // Live: the normalised category plus at most three tech-stack tags.
+              [...(theme ? [theme] : []), ...apps].slice(0, 3).map((tag) => (
+                <Badge key={tag} variant="outline" className="text-muted-foreground">
+                  {tag}
+                </Badge>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

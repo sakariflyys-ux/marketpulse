@@ -1,8 +1,12 @@
 import type { Prisma } from "../../../generated/prisma/client";
-import { estimateRevenue } from "./estimate";
+import { categorize } from "./categories";
+import { resolveStoreName } from "./parse";
 import type { StorefrontInspection } from "./ShopifyStorefrontClient";
 
 export const SHOPIFY_STORE_SOURCE = "shopify_storefront";
+
+/** Cap on stored raw tags: the most common ones carry the signal. */
+export const MAX_RAW_TAGS = 50;
 
 export type MappedStore = {
   domain: string;
@@ -10,39 +14,37 @@ export type MappedStore = {
   snapshot: Omit<Prisma.StoreSnapshotUncheckedCreateInput, "id" | "storeId">;
 };
 
-/** Best-effort category from the dominant product_type; "Uncategorized" otherwise. */
-function categoryFrom(inspection: StorefrontInspection): string {
-  const type = inspection.products?.productTypes[0];
-  return type && type.length <= 40 ? type : "Uncategorized";
-}
-
 /**
- * Maps a storefront inspection onto Store + StoreSnapshot. Measured
- * revenue/traffic stay null; the estimate is written to revenueEstimate with
- * its confidence and is the only derived figure.
+ * Maps a storefront inspection onto Store + StoreSnapshot.
+ *
+ * Only measured values are written: product count (with the truncation
+ * flag), price range across the whole crawl, currency, theme, apps, raw
+ * tags and a category normalised from them. Revenue and traffic stay null
+ * and nothing derived is written in their place — the Phase 7 "estimate"
+ * was removed because catalogue size is not a revenue signal.
  */
 export function mapStorefront(inspection: StorefrontInspection): MappedStore {
   const products = inspection.products;
-  const estimate = estimateRevenue({
-    productCount: products?.count ?? null,
-    priceMin: products?.priceMin ?? null,
-    priceMax: products?.priceMax ?? null,
-  });
+  const tagCounts = products?.tagCounts ?? [];
+  const rawTags = tagCounts.slice(0, MAX_RAW_TAGS).map((t) => t.value);
   const top = products?.top[0];
-  const name = inspection.html.title?.replace(/\s*[|–-].*$/, "").trim() || inspection.domain;
+  const name = resolveStoreName(inspection.html, inspection.domain);
 
   return {
     domain: inspection.domain,
     data: {
       name,
+      pageTitle: inspection.html.title,
       description: inspection.html.description,
       logo: null,
-      category: categoryFrom(inspection),
+      category: categorize(tagCounts),
+      rawTags,
       monthlyRevenue: null,
       monthlyTraffic: null,
-      revenueEstimate: estimate.revenueEstimate,
-      estimateConfidence: estimate.confidence,
+      revenueEstimate: null,
+      estimateConfidence: null,
       productCount: products?.count ?? null,
+      productCountTruncated: inspection.productCountTruncated,
       priceMin: products?.priceMin ?? null,
       priceMax: products?.priceMax ?? null,
       currency: inspection.html.currency,
@@ -60,7 +62,7 @@ export function mapStorefront(inspection: StorefrontInspection): MappedStore {
       productCount: products?.count ?? null,
       priceMin: products?.priceMin ?? null,
       priceMax: products?.priceMax ?? null,
-      revenueEstimate: estimate.revenueEstimate,
+      revenueEstimate: null,
       source: SHOPIFY_STORE_SOURCE,
       capturedAt: inspection.fetchedAt,
     },

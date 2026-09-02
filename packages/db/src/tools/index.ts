@@ -110,7 +110,7 @@ export const searchAds = define({
 export const getTrendingStores = define({
   name: "get_trending_stores",
   description:
-    "Stores ranked by growth over the last 7 daily snapshots, then by size. `growthMetric` says what grew: monthlyRevenue for sample stores (source 'mock', synthetic figures), productCount for live stores (source 'shopify_storefront', observed from the public catalogue). Live stores have no measured revenue/traffic (null); `revenueEstimate` with `estimateConfidence` ('none'|'low'|'medium') is an order-of-magnitude guess from catalogue size and prices — say so when you quote it. Optionally filter by category.",
+    "Stores ranked by growth over the last 7 daily snapshots, then by size. `growthMetric` says what grew: monthlyRevenue for sample stores (source 'mock', synthetic figures), productCount for live stores (source 'shopify_storefront', observed from the public catalogue). Live stores have no measured revenue or traffic (null) and no estimate is computed — public storefronts do not expose sales. What IS measured: productCount (a floor when productCountTruncated is true), priceRange, currency, theme, apps, rawTags. Optionally filter by category.",
   inputSchema: z.object({
     limit: z.number().int().min(1).max(50).default(10),
     category: z.string().max(100).optional().describe("Exact category name, e.g. 'Skincare'"),
@@ -128,9 +128,8 @@ export const getTrendingStores = define({
         // Measured (sample data) vs. estimated (live): never mix them up.
         monthlyRevenue: s.monthlyRevenue,
         monthlyTraffic: s.monthlyTraffic,
-        revenueEstimate: s.revenueEstimate,
-        estimateConfidence: s.estimateConfidence,
         productCount: s.productCount,
+        productCountTruncated: s.productCountTruncated,
         priceRange:
           s.priceMin !== null || s.priceMax !== null
             ? { min: s.priceMin, max: s.priceMax, currency: s.currency }
@@ -146,7 +145,7 @@ export const getTrendingStores = define({
 export const getStoreInsights = define({
   name: "get_store_insights",
   description:
-    "Full insights for one store by its Shopify domain (e.g. 'allbirds.com'): observed signals (product count, price range, currency, theme, apps), snapshot history, recent ads with days running, and either measured revenue/traffic (sample stores only) or a labelled estimate with `estimateConfidence` (live stores). Null means not available — never treat it as zero.",
+    "Full insights for one store by its Shopify domain (e.g. 'allbirds.com'): observed signals (product count, price range, currency, theme, apps), snapshot history, recent ads with days running, and measured revenue/traffic for sample stores only. Live stores carry no revenue figure of any kind; quote productCount (a floor when productCountTruncated is true), priceRange and the tech stack instead. Null means not available — never treat it as zero.",
   inputSchema: z.object({
     domain: z.string().min(3).max(200).describe("Shopify domain, with or without https://"),
   }),
@@ -177,10 +176,11 @@ export const getStoreInsights = define({
       monthlyRevenue: store.monthlyRevenue,
       monthlyTraffic: store.monthlyTraffic,
       growth30d: revenueGrowth30d,
-      // Storefront-derived estimate and observable signals for live stores.
-      revenueEstimate: store.revenueEstimate,
-      estimateConfidence: store.estimateConfidence,
+      // Observable signals for live stores. No revenue estimate is computed.
       productCount: store.productCount,
+      productCountTruncated: store.productCountTruncated,
+      rawTags: store.rawTags,
+      pageTitle: store.pageTitle,
       productCountGrowth30d,
       priceRange:
         store.priceMin !== null || store.priceMax !== null
@@ -194,7 +194,6 @@ export const getStoreInsights = define({
         monthlyRevenue: s.monthlyRevenue,
         monthlyTraffic: s.monthlyTraffic,
         productCount: s.productCount,
-        revenueEstimate: s.revenueEstimate,
       })),
       /** Same as `history`, kept so existing prompts keep working. */
       revenueHistory: store.snapshots.map((s) => ({

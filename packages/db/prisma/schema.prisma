@@ -87,12 +87,18 @@ model Store {
   estimateConfidence String?
   /// Observable storefront signals.
   productCount    Int?
+  /// True when the catalogue crawl hit the hard page cap; the UI shows "10,000+".
+  productCountTruncated Boolean @default(false)
   priceMin        Float?
   priceMax        Float?
   currency        String?
   /// "mock" (seed) or "shopify_storefront" (ingestion).
   source          String    @default("mock")
   sourceUpdatedAt DateTime?
+  /// Raw <title>; the display name is resolved separately (og:site_name, ld+json, ...).
+  pageTitle       String?
+  /// Raw product_type values and tags from the storefront, most common first.
+  rawTags         String[]  @default([])
   topProduct     Json?
   techStack      Json?
   lastScrapedAt  DateTime?
@@ -208,6 +214,13 @@ model TrackedEntity {
   linkedDomain  String?
   addedByUserId String?
   active        Boolean     @default(true)
+  /// Why it was deactivated automatically (e.g. not a Shopify storefront).
+  inactiveReason String?
+  /// Set when the site answers 403 persistently; skipped until this time.
+  blockedUntil  DateTime?
+  blockedReason String?
+  /// Consecutive failed runs; reset on success.
+  failCount     Int         @default(0)
   lastRunAt     DateTime?
   lastError     String?
   createdAt     DateTime    @default(now())

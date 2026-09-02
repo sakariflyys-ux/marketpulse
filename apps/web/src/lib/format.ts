@@ -72,3 +72,23 @@ export function daysBetween(from: string | Date | null, to: string | Date | null
   const b = typeof to === "string" ? new Date(to) : to;
   return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86_400_000));
 }
+
+/** "$18 – $240" style range; null when either bound is unknown. */
+export function formatPriceRange(
+  min: number | null,
+  max: number | null,
+  currency: string | null,
+): string | null {
+  if (min === null || max === null) return null;
+  const fmt = new Intl.NumberFormat("en-US", {
+    style: currency ? "currency" : "decimal",
+    currency: currency ?? undefined,
+    maximumFractionDigits: 0,
+  });
+  return min === max ? fmt.format(min) : `${fmt.format(min)} – ${fmt.format(max)}`;
+}
+
+/** Product count with the truncation floor made explicit. */
+export function formatProductCount(count: number, truncated: boolean): string {
+  return truncated ? `${count.toLocaleString("en-US")}+` : count.toLocaleString("en-US");
+}

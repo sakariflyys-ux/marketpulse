@@ -5,8 +5,15 @@ export type ParsedHtml = {
   theme: string | null;
   apps: string[];
   currency: string | null;
+  /** Raw <title> text (often an SEO tagline, not the brand). */
   title: string | null;
   description: string | null;
+  /** og:site_name, when present. */
+  siteName: string | null;
+  /** name of an Organization/WebSite node in application/ld+json, when present. */
+  ldName: string | null;
+  /** The myshopify handle from `Shopify.shop`, when present. */
+  shopHandle: string | null;
 };
 
 /**
@@ -61,7 +68,104 @@ export function parseStorefrontHtml(html: string): ParsedHtml {
         "",
     ) || null;
 
-  return { isShopify, theme, apps, currency, title, description };
+  const siteName =
+    decode(
+      head.match(/<meta\s+property="og:site_name"\s+content="([^"]*)"/i)?.[1] ??
+        head.match(/<meta\s+content="([^"]*)"\s+property="og:site_name"/i)?.[1] ??
+        "",
+    ) || null;
+
+  const ldName = ldJsonName(head);
+
+  const shopHandle =
+    head.match(/Shopify\.shop\s*=\s*["']([a-z0-9-]+)\.myshopify\.com["']/i)?.[1] ?? null;
+
+  return { isShopify, theme, apps, currency, title, description, siteName, ldName, shopHandle };
+}
+
+const NAMED_LD_TYPES = new Set([
+  "organization",
+  "website",
+  "store",
+  "onlinestore",
+  "brand",
+  "corporation",
+  "localbusiness",
+]);
+
+/** First `name` of an Organization/WebSite-like node across all ld+json blocks. */
+function ldJsonName(head: string): string | null {
+  const blocks = [
+    ...head.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi),
+  ];
+  for (const block of blocks) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(block[1]!.trim());
+    } catch {
+      continue;
+    }
+    const found = findNamedNode(parsed);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findNamedNode(node: unknown, depth = 0): string | null {
+  if (!node || typeof node !== "object" || depth > 4) return null;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const n = findNamedNode(item, depth + 1);
+      if (n) return n;
+    }
+    return null;
+  }
+  const obj = node as Record<string, unknown>;
+  const type = obj["@type"];
+  const types = (Array.isArray(type) ? type : [type])
+    .filter((t): t is string => typeof t === "string")
+    .map((t) => t.toLowerCase());
+  if (
+    types.some((t) => NAMED_LD_TYPES.has(t)) &&
+    typeof obj["name"] === "string" &&
+    obj["name"].trim()
+  ) {
+    return decode(obj["name"]);
+  }
+  for (const key of ["@graph", "publisher", "brand", "isPartOf"]) {
+    const n = findNamedNode(obj[key], depth + 1);
+    if (n) return n;
+  }
+  return null;
+}
+
+const TITLE_SEPARATOR = /\s*[|–—:]\s*|\s+-\s+/;
+const MAX_TITLE_NAME = 30;
+
+/**
+ * Store display name, first non-empty of: og:site_name, ld+json name,
+ * Shopify.shop handle (title-cased), <title> before its first separator if
+ * short, the domain without TLD (title-cased). Never the raw SEO title.
+ */
+export function resolveStoreName(
+  html: Pick<ParsedHtml, "siteName" | "ldName" | "shopHandle" | "title">,
+  domain: string,
+): string {
+  if (html.siteName?.trim()) return html.siteName.trim();
+  if (html.ldName?.trim()) return html.ldName.trim();
+  if (html.shopHandle?.trim()) return titleCase(html.shopHandle.replace(/-/g, " "));
+  const lead = html.title?.split(TITLE_SEPARATOR)[0]?.trim();
+  if (lead && lead.length > 0 && lead.length < MAX_TITLE_NAME) return lead;
+  const label = domain.replace(/^www\./, "").split(".")[0] ?? domain;
+  return titleCase(label.replace(/[-_]+/g, " "));
+}
+
+export function titleCase(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w ? w[0]!.toUpperCase() + w.slice(1) : w))
+    .join(" ");
 }
 
 function decode(s: string): string {
@@ -81,6 +185,7 @@ export type ProductsJson = {
     title?: string;
     handle?: string;
     product_type?: string;
+    tags?: string[] | string;
     images?: { src?: string }[];
     variants?: { price?: string | number; available?: boolean }[];
   }[];
@@ -91,7 +196,12 @@ export type ParsedProducts = {
   priceMin: number | null;
   priceMax: number | null;
   top: { name: string; price: number | null; imageUrl: string | null; handle: string | null }[];
+  /** product_type values, most common first (kept for compatibility). */
   productTypes: string[];
+  /** product_type values and tags with the number of products carrying each, most common first. */
+  tagCounts: { value: string; count: number }[];
+  /** First-variant price per product, for catalogue statistics. */
+  prices: number[];
 };
 
 /** Extracts what we use from one or more /products.json pages. */
@@ -100,10 +210,25 @@ export function parseProducts(pages: ProductsJson[], topN = 5): ParsedProducts {
   let priceMin: number | null = null;
   let priceMax: number | null = null;
   const types = new Map<string, number>();
+  const tagCounts = new Map<string, number>();
+  const prices: number[] = [];
 
   for (const product of products) {
     const type = typeof product.product_type === "string" ? product.product_type.trim() : "";
-    if (type) types.set(type, (types.get(type) ?? 0) + 1);
+    if (type) {
+      types.set(type, (types.get(type) ?? 0) + 1);
+      tagCounts.set(type, (tagCounts.get(type) ?? 0) + 1);
+    }
+    const rawTags = Array.isArray(product.tags)
+      ? product.tags
+      : typeof product.tags === "string"
+        ? product.tags.split(",")
+        : [];
+    for (const tag of new Set(rawTags.map((t) => String(t).trim()).filter(Boolean))) {
+      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+    }
+    const firstPrice = Number.parseFloat(String(product.variants?.[0]?.price ?? ""));
+    if (Number.isFinite(firstPrice) && firstPrice >= 0) prices.push(firstPrice);
     for (const v of product.variants ?? []) {
       const price =
         typeof v.price === "number" ? v.price : Number.parseFloat(String(v.price ?? ""));
@@ -132,6 +257,10 @@ export function parseProducts(pages: ProductsJson[], topN = 5): ParsedProducts {
     priceMax,
     top,
     productTypes: [...types.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t),
+    tagCounts: [...tagCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([value, count]) => ({ value, count })),
+    prices,
   };
 }
 

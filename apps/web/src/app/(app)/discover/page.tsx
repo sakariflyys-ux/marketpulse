@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getRepositories } from "@synergilon/db/repositories";
+import { getRepositories, resolveDataSource } from "@synergilon/db/repositories";
 
 import { PageHeader } from "@/components/page-header";
 import { DiscoverFilters } from "@/components/stores/discover-filters";
@@ -19,6 +19,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Sea
   const { q, category } = await searchParams;
   const { stores } = getRepositories();
   const categories = await stores.categories();
+  const live = resolveDataSource() === "live";
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,7 +28,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Sea
         description={
           q
             ? `Stores matching "${q}", ranked by relevance.`
-            : "Trending stores ranked by revenue growth over the last 7 days."
+            : live
+              ? "Tracked stores ranked by catalogue growth (product-count change over the last 7 snapshots), then by catalogue size. Revenue is not measured."
+              : "Trending stores ranked by revenue growth over the last 7 days (sample data)."
         }
       >
         <Suspense>
@@ -35,13 +38,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Sea
         </Suspense>
       </PageHeader>
       <Suspense key={`${q ?? ""}|${category ?? ""}`} fallback={<GridSkeleton />}>
-        <Results q={q} category={category} />
+        <Results q={q} category={category} live={live} />
       </Suspense>
     </div>
   );
 }
 
-async function Results({ q, category }: { q?: string; category?: string }) {
+async function Results({ q, category, live }: { q?: string; category?: string; live: boolean }) {
   const { stores } = getRepositories();
   const query = q?.trim() || undefined;
 
@@ -55,17 +58,35 @@ async function Results({ q, category }: { q?: string; category?: string }) {
     ? `/api/stores${toQueryString({ q: query, category, sort: "relevance", limit: PAGE_SIZE })}`
     : `/api/stores/trending${toQueryString({ category, limit: PAGE_SIZE })}`;
 
+  // Growth needs two snapshots per store; after the first ingestion every
+  // card would read "n/a", so explain once instead.
+  const noGrowthYet =
+    !query &&
+    live &&
+    page.data.length > 0 &&
+    page.data.every((s) => !("growth" in s) || s.growth === null);
+
   return (
-    <StoreGrid
-      initial={serialize(page)}
-      nextPageUrl={nextPageUrl}
-      emptyTitle={query ? "No stores match your search" : "No stores yet"}
-      emptyDescription={
-        query
-          ? "Try different keywords, or remove the category filter."
-          : "Seed the database with `pnpm db:seed` to populate trending stores."
-      }
-    />
+    <>
+      {noGrowthYet ? (
+        <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+          Trends appear after the second daily ingestion: growth compares each store&apos;s product
+          count across snapshots, and there is only one so far.
+        </p>
+      ) : null}
+      <StoreGrid
+        initial={serialize(page)}
+        nextPageUrl={nextPageUrl}
+        emptyTitle={query ? "No stores match your search" : "No stores yet"}
+        emptyDescription={
+          query
+            ? "Try different keywords, or remove the category filter."
+            : live
+              ? "Run `pnpm worker:ingest-stores` to populate tracked stores."
+              : "Seed the database with `pnpm db:seed` to populate trending stores."
+        }
+      />
+    </>
   );
 }
 

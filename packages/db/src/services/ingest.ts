@@ -18,7 +18,6 @@ import {
   ShopifyStorefrontClient,
   StorefrontSkippedError,
   type NegativeCache,
-  type StorefrontInspection,
 } from "../sources/shopify";
 
 export type IngestSourceName = "META_AD_LIBRARY" | "SHOPIFY_STOREFRONT";
@@ -33,13 +32,25 @@ export type TrackedEntityRow = {
   active: boolean;
   lastRunAt: Date | null;
   lastError: string | null;
+  blockedUntil?: Date | null;
+  failCount?: number;
+};
+
+export type TrackedPatch = {
+  lastRunAt: Date;
+  lastError: string | null;
+  failCount?: number;
+  blockedUntil?: Date | null;
+  blockedReason?: string | null;
+  active?: boolean;
+  inactiveReason?: string | null;
 };
 
 export type AdUpsert = { adLibraryId: string; data: Omit<Prisma.AdUncheckedCreateInput, "id"> };
 
 export interface IngestDb {
   listTracked(kind: "STORE" | "BRAND"): Promise<TrackedEntityRow[]>;
-  markTracked(id: string, patch: { lastRunAt: Date; lastError: string | null }): Promise<void>;
+  markTracked(id: string, patch: TrackedPatch): Promise<void>;
   findStoreIdByDomain(domain: string): Promise<string | null>;
   /** Insert or update by adLibraryId. Returns "created" | "updated". */
   upsertAd(ad: AdUpsert, observedAt: Date): Promise<"created" | "updated">;
@@ -81,6 +92,7 @@ export type IngestSummary = {
     written: number;
     deactivated?: number;
     error?: string;
+    note?: string;
   }[];
   error: string | null;
 };
@@ -233,6 +245,11 @@ export async function runIngestAds(
 
 export type IngestStoresOptions = { now?: () => Date; log?: Logger };
 
+/** A 403 keeps a domain out of the rotation for this long. */
+export const BLOCKED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** Consecutive "no response" runs before a domain is deactivated. */
+export const UNREACHABLE_STRIKES = 2;
+
 export async function ingestStoreForEntity(
   client: ShopifyStorefrontClient,
   db: IngestDb,
@@ -240,12 +257,25 @@ export async function ingestStoreForEntity(
   options: IngestStoresOptions = {},
 ): Promise<IngestSummary["entities"][number]> {
   const now = options.now ?? (() => new Date());
-  const inspection: StorefrontInspection = await client.inspect(entity.value);
+  const inspection = await client.inspect(entity.value);
   const mapped = mapStorefront(inspection);
   const storeId = await db.upsertStore(mapped.domain, mapped.data);
   await db.createSnapshot(storeId, mapped.snapshot);
-  await db.markTracked(entity.id, { lastRunAt: now(), lastError: null });
-  return { entity: mapped.domain, seen: 1, written: 1 };
+  await db.markTracked(entity.id, {
+    lastRunAt: now(),
+    lastError: null,
+    failCount: 0,
+    blockedUntil: null,
+    blockedReason: null,
+  });
+  return {
+    entity: mapped.domain,
+    seen: 1,
+    written: 1,
+    ...(inspection.productCountTruncated
+      ? { note: "product count truncated at the page cap" }
+      : {}),
+  };
 }
 
 export async function runIngestStores(
@@ -256,20 +286,60 @@ export async function runIngestStores(
   const log = options.log ?? (() => undefined);
   const now = options.now ?? (() => new Date());
   return withIngestRun(db, "SHOPIFY_STOREFRONT", async (report) => {
-    const entities = (await db.listTracked("STORE")).filter((e) => e.active);
+    const all = (await db.listTracked("STORE")).filter((e) => e.active);
+    const current = now();
+    // Blocked domains (persistent 403) sit out until blockedUntil passes.
+    const entities = all.filter(
+      (e) => !e.blockedUntil || e.blockedUntil.getTime() <= current.getTime(),
+    );
+    const blocked = all.length - entities.length;
+    if (blocked) log(`skipping ${blocked} blocked domain(s)`);
     if (entities.length === 0) log("no active STORE entities to ingest");
     for (const entity of entities) {
       try {
         const result = await ingestStoreForEntity(client, db, entity, options);
-        log(`${result.entity}: refreshed`);
+        log(`${result.entity}: refreshed${result.note ? ` (${result.note})` : ""}`);
         report(result);
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
-        // Skips (robots, negative cache) are expected outcomes, not failures.
-        const skipped = err instanceof StorefrontSkippedError && err.reason === "negative-cache";
-        if (!skipped) await db.markTracked(entity.id, { lastRunAt: now(), lastError: error });
+        const reason = err instanceof StorefrontSkippedError ? err.reason : "error";
+        const fails = (entity.failCount ?? 0) + 1;
+        const at = now();
+        if (reason === "negative-cache") {
+          // Already recorded on a previous run; nothing new to write.
+          report({ entity: entity.value, seen: 0, written: 0, error });
+        } else if (reason === "blocked") {
+          await db.markTracked(entity.id, {
+            lastRunAt: at,
+            lastError: error,
+            failCount: fails,
+            blockedUntil: new Date(at.getTime() + BLOCKED_TTL_MS),
+            blockedReason: "403 from storefront; deprioritised for 30 days",
+          });
+          report({ entity: entity.value, seen: 1, written: 0, error });
+        } else if (reason === "not-shopify") {
+          await db.markTracked(entity.id, {
+            lastRunAt: at,
+            lastError: error,
+            failCount: fails,
+            active: false,
+            inactiveReason: "not a Shopify storefront",
+          });
+          report({ entity: entity.value, seen: 1, written: 0, error });
+        } else if (reason === "unreachable" && fails >= UNREACHABLE_STRIKES) {
+          await db.markTracked(entity.id, {
+            lastRunAt: at,
+            lastError: error,
+            failCount: fails,
+            active: false,
+            inactiveReason: `no response on ${fails} consecutive runs`,
+          });
+          report({ entity: entity.value, seen: 1, written: 0, error });
+        } else {
+          await db.markTracked(entity.id, { lastRunAt: at, lastError: error, failCount: fails });
+          report({ entity: entity.value, seen: 1, written: 0, error });
+        }
         log(`${entity.value}: ${error}`);
-        report({ entity: entity.value, seen: skipped ? 0 : 1, written: 0, error });
       }
     }
   });

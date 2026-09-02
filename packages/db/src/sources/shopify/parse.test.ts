@@ -1,9 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { estimateRevenue } from "./estimate";
-import { isAllowedByRobots, parseProducts, parseStorefrontHtml } from "./parse";
+import { isAllowedByRobots, parseProducts, parseStorefrontHtml, type ProductsJson } from "./parse";
 import { mapStorefront } from "./mapper";
-import type { StorefrontInspection } from "./ShopifyStorefrontClient";
 
 const fixture = (name: string) =>
   readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), "utf8");
@@ -82,84 +80,50 @@ describe("isAllowedByRobots", () => {
   });
 });
 
-describe("estimateRevenue", () => {
-  it("returns null with confidence none when inputs are missing", () => {
-    expect(estimateRevenue({ productCount: null, priceMin: 10, priceMax: 20 })).toMatchObject({
-      revenueEstimate: null,
-      confidence: "none",
-    });
-    expect(estimateRevenue({ productCount: 10, priceMin: null, priceMax: null })).toMatchObject({
-      revenueEstimate: null,
-      confidence: "none",
-    });
-    expect(estimateRevenue({ productCount: 0, priceMin: 10, priceMax: 20 })).toMatchObject({
-      revenueEstimate: null,
-      confidence: "none",
-    });
-  });
-  it("produces a low-confidence order-of-magnitude figure from catalogue and prices", () => {
-    const r = estimateRevenue({ productCount: 40, priceMin: 25, priceMax: 100 });
-    // sqrt(25*100)=50 typical price × 40 products × 0.75 units = 1500
-    expect(r).toMatchObject({ revenueEstimate: 1500, confidence: "low" });
-    expect(r.method).toMatch(/not a measurement/);
-  });
-  it("tightens confidence when reviews corroborate, without changing the figure", () => {
-    const a = estimateRevenue({ productCount: 40, priceMin: 25, priceMax: 100 });
-    const b = estimateRevenue({ productCount: 40, priceMin: 25, priceMax: 100, reviewCount: 120 });
-    expect(b.revenueEstimate).toBe(a.revenueEstimate);
-    expect(b.confidence).toBe("medium");
-  });
-});
-
 describe("mapStorefront", () => {
-  it("writes only observed signals plus a labelled estimate; measured revenue stays null", () => {
-    const inspection: StorefrontInspection = {
-      domain: "example-linen.com",
-      isShopify: true,
-      html: parseStorefrontHtml(fixture("shopify-home.html")),
-      products: parseProducts([JSON.parse(fixture("products.json"))]),
-      pagesFetched: 1,
-      robotsAllowed: true,
-      fetchedAt: new Date("2026-09-01T00:00:00Z"),
-    };
-    const mapped = mapStorefront(inspection);
+  const html = parseStorefrontHtml(fixture("shopify-home.html"));
+  const products = parseProducts([JSON.parse(fixture("products.json")) as ProductsJson]);
+  const base = {
+    domain: "example-linen.com",
+    isShopify: true as const,
+    html,
+    pagesFetched: 1,
+    productCountTruncated: false,
+    robotsAllowed: true as const,
+    fetchedAt: new Date("2026-09-01T00:00:00Z"),
+  };
+
+  it("writes only observed signals; measured revenue stays null and no estimate is written", () => {
+    const mapped = mapStorefront({ ...base, products });
     expect(mapped.data.name).toBe("Example Linen");
+    expect(mapped.data.pageTitle).toBe("Example Linen | Breathable linen shirts");
     expect(mapped.data.monthlyRevenue).toBeNull();
     expect(mapped.data.monthlyTraffic).toBeNull();
-    expect(mapped.data.source).toBe("shopify_storefront");
+    expect(mapped.data.revenueEstimate).toBeNull();
+    expect(mapped.data.estimateConfidence).toBeNull();
     expect(mapped.data.productCount).toBe(4);
+    expect(mapped.data.productCountTruncated).toBe(false);
     expect(mapped.data.priceMin).toBe(25);
     expect(mapped.data.priceMax).toBe(250);
     expect(mapped.data.currency).toBe("EUR");
-    expect(mapped.data.category).toBe("Shirts");
-    expect(mapped.data.estimateConfidence).toBe("low");
-    expect(mapped.data.revenueEstimate).toBeGreaterThan(0);
+    expect(mapped.data.category).toBe("Apparel");
+    expect(mapped.data.rawTags).toEqual(["Shirts", "Trousers"]);
     expect(mapped.data.techStack).toEqual({
       theme: "Dawn",
-      apps: expect.arrayContaining(["Klaviyo"]),
+      apps: ["Klaviyo", "Gorgias", "Judge.me", "Google Analytics"],
     });
-    expect(mapped.snapshot).toMatchObject({
-      monthlyRevenue: null,
-      productCount: 4,
-      source: "shopify_storefront",
-    });
+    expect(mapped.data.source).toBe("shopify_storefront");
+    expect(mapped.snapshot.productCount).toBe(4);
+    expect(mapped.snapshot.revenueEstimate).toBeNull();
+    expect(mapped.snapshot.monthlyRevenue).toBeNull();
   });
 
-  it("degrades to no estimate when products.json was unavailable", () => {
-    const inspection: StorefrontInspection = {
-      domain: "closed.example",
-      isShopify: true,
-      html: parseStorefrontHtml(fixture("malformed.html")),
-      products: null,
-      pagesFetched: 0,
-      robotsAllowed: true,
-      fetchedAt: new Date(),
-    };
-    const mapped = mapStorefront(inspection);
-    expect(mapped.data.revenueEstimate).toBeNull();
-    expect(mapped.data.estimateConfidence).toBe("none");
+  it("degrades gracefully when products.json was unavailable", () => {
+    const mapped = mapStorefront({ ...base, products: null });
     expect(mapped.data.productCount).toBeNull();
-    expect(mapped.data.category).toBe("Uncategorized");
-    expect(mapped.data.topProduct).toBeUndefined();
+    expect(mapped.data.priceMin).toBeNull();
+    expect(mapped.data.category).toBe("Other");
+    expect(mapped.data.rawTags).toEqual([]);
+    expect(mapped.data.revenueEstimate).toBeNull();
   });
 });

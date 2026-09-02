@@ -18,7 +18,8 @@ const GROWTH_WINDOW = 7;
 export const STORE_COLUMNS = Prisma.sql`
   s.id, s."shopifyDomain", s.name, s.description, s.logo, s.category,
   s."monthlyRevenue", s."monthlyTraffic", s."revenueEstimate", s."estimateConfidence",
-  s."productCount", s."priceMin", s."priceMax", s.currency, s.source, s."sourceUpdatedAt",
+  s."productCount", s."productCountTruncated", s."pageTitle", s."rawTags",
+  s."priceMin", s."priceMax", s.currency, s.source, s."sourceUpdatedAt",
   s."topProduct", s."techStack", s."lastScrapedAt", s."createdAt", s."updatedAt"`;
 
 type StoreRow = StoreSummary & { _sort: number | string | Date | null };
@@ -140,7 +141,7 @@ export class MockStoreRepository implements StoreRepository {
       FROM "Store" s
       LEFT JOIN growth g ON g."storeId" = s.id
       WHERE ${Prisma.join(where, " AND ")}
-      ORDER BY growth DESC NULLS LAST, COALESCE(s."monthlyRevenue", s."revenueEstimate", 0) DESC, s.id
+      ORDER BY growth DESC NULLS LAST, COALESCE(s."monthlyRevenue", s."productCount", 0) DESC, s.id
       LIMIT ${limit + 1} OFFSET ${offset}`;
 
     return toPage(

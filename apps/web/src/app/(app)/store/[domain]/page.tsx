@@ -5,14 +5,14 @@ import { notFound } from "next/navigation";
 import { ArrowRight, Globe, Megaphone } from "lucide-react";
 import { getRepositories } from "@synergilon/db/repositories";
 
+import { PlatformBadge } from "@/components/ads/platform-badge";
 import { EmptyState } from "@/components/empty-state";
 import { Metric, Missing } from "@/components/missing-value";
-import { PlatformBadge } from "@/components/ads/platform-badge";
 import { PageHeader } from "@/components/page-header";
 import { SourceBadge } from "@/components/source-badge";
+import { SaveToFolderButton } from "@/components/saved/save-to-folder-dialog";
 import { GrowthIndicator } from "@/components/stores/growth-indicator";
 import { RevenueChart } from "@/components/stores/revenue-chart";
-import { SaveToFolderButton } from "@/components/saved/save-to-folder-dialog";
 import { StoreLogo } from "@/components/stores/store-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,11 +25,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { daysBetween, formatCompact, formatCurrency, formatDate } from "@/lib/format";
+import {
+  daysBetween,
+  formatCompact,
+  formatCurrency,
+  formatDate,
+  formatPriceRange,
+  formatProductCount,
+} from "@/lib/format";
 import { growthFromSnapshots } from "@/lib/growth";
-import { ESTIMATE_METHOD } from "@/lib/metrics";
 import { serialize } from "@/lib/serialize";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const dynamic = "force-dynamic";
 
@@ -74,31 +79,29 @@ export default async function StorePage({ params }: { params: Params }) {
 
   const { growth, metric: growthMetric } = growthFromSnapshots(store.snapshots);
   const apps = store.techStack?.apps ?? [];
-  // Chart the measured revenue when we have it; otherwise the estimate
-  // (labelled as such); otherwise the observable product count.
+  const topProduct = store.topProduct;
+  const adsHref = `/ads?storeId=${encodeURIComponent(store.id)}`;
+  const live = store.source !== "mock";
+
+  // Chart the measured revenue for sample stores; live stores only have the
+  // observable product count. No estimate series exists any more.
   const hasRevenue = store.snapshots.some((p) => p.monthlyRevenue !== null);
-  const hasEstimate = store.snapshots.some((p) => p.revenueEstimate !== null);
-  const chartSeries = hasRevenue
-    ? "monthlyRevenue"
-    : hasEstimate
-      ? "revenueEstimate"
-      : "productCount";
+  const chartSeries = hasRevenue ? "monthlyRevenue" : "productCount";
   const chartTitle =
-    chartSeries === "monthlyRevenue"
-      ? "Monthly revenue over time"
-      : chartSeries === "revenueEstimate"
-        ? "Estimated monthly revenue over time"
-        : "Catalogue size over time";
+    chartSeries === "monthlyRevenue" ? "Monthly revenue over time" : "Catalogue size over time";
   const chartData = store.snapshots.map((p) => ({
     capturedAt: p.capturedAt,
     value: p[chartSeries],
   }));
-  const topProduct = store.topProduct;
-  const adsHref = `/ads?storeId=${encodeURIComponent(store.id)}`;
+
+  const description =
+    live && store.pageTitle && store.pageTitle !== store.name
+      ? `${store.pageTitle}${store.description ? ` — ${store.description}` : ""}`
+      : (store.description ?? undefined);
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={store.name} description={store.description ?? undefined}>
+      <PageHeader title={store.name} description={description}>
         <SaveToFolderButton itemType="STORE" itemId={store.id} label={store.name} />
       </PageHeader>
 
@@ -138,27 +141,18 @@ export default async function StorePage({ params }: { params: Params }) {
           />
         ) : (
           <Stat
-            label="Monthly revenue (estimate)"
+            label="Products"
             value={
-              <Metric
-                value={store.revenueEstimate}
-                format={formatCurrency}
-                reason="storeEstimate"
-              />
+              store.productCount === null ? (
+                <Missing reason="storeMeasured" />
+              ) : (
+                formatProductCount(store.productCount, store.productCountTruncated)
+              )
             }
             hint={
-              store.revenueEstimate !== null ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="cursor-help underline decoration-dotted underline-offset-2">
-                      Estimate · {store.estimateConfidence ?? "none"} confidence
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">{ESTIMATE_METHOD}</TooltipContent>
-                </Tooltip>
-              ) : (
-                "Not measured"
-              )
+              store.productCountTruncated
+                ? "Crawl capped at 10,000; the count is a floor"
+                : "Public catalogue"
             }
           />
         )}
@@ -170,15 +164,13 @@ export default async function StorePage({ params }: { params: Params }) {
           />
         ) : (
           <Stat
-            label="Products"
+            label="Price range"
             value={
-              <Metric value={store.productCount} format={formatCompact} reason="storeMeasured" />
+              formatPriceRange(store.priceMin, store.priceMax, store.currency) ?? (
+                <Missing reason="storeMeasured" />
+              )
             }
-            hint={
-              store.priceMin !== null && store.priceMax !== null
-                ? `${store.currency ?? ""} ${store.priceMin.toFixed(0)}–${store.priceMax.toFixed(0)} price range`
-                : "Public catalogue"
-            }
+            hint={store.currency ? `Listed prices, ${store.currency}` : "Listed prices"}
           />
         )}
         <Stat
@@ -200,9 +192,7 @@ export default async function StorePage({ params }: { params: Params }) {
             <CardDescription>
               {chartSeries === "monthlyRevenue"
                 ? `Daily figures from the last ${store.snapshots.length} snapshots (sample data)`
-                : chartSeries === "revenueEstimate"
-                  ? "Storefront-derived estimate per snapshot — not a measurement"
-                  : "Products in the public catalogue per snapshot"}
+                : "Products in the public catalogue per snapshot"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -215,7 +205,9 @@ export default async function StorePage({ params }: { params: Params }) {
         <Card>
           <CardHeader>
             <CardTitle>Top product</CardTitle>
-            <CardDescription>Best seller by estimated revenue</CardDescription>
+            <CardDescription>
+              {live ? "First listed in the public catalogue" : "Best seller by estimated revenue"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {topProduct ? (
@@ -235,15 +227,37 @@ export default async function StorePage({ params }: { params: Params }) {
                 <div className="min-w-0">
                   <p className="font-medium">{topProduct.name}</p>
                   <p className="text-sm text-muted-foreground tabular-nums">
-                    {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-                      topProduct.price,
-                    )}
+                    {new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: store.currency ?? "USD",
+                    }).format(topProduct.price)}
                   </p>
                 </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">No product data.</p>
             )}
+            {live && store.rawTags.length > 0 ? (
+              <div className="mt-4">
+                <p className="mb-1.5 text-xs text-muted-foreground">Raw store tags</p>
+                <div className="flex flex-wrap gap-1">
+                  {store.rawTags.slice(0, 12).map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="outline"
+                      className="font-normal text-muted-foreground"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                  {store.rawTags.length > 12 ? (
+                    <Badge variant="outline" className="font-normal text-muted-foreground">
+                      +{store.rawTags.length - 12}
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>

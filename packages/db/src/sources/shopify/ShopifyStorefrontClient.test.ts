@@ -94,29 +94,43 @@ describe("ShopifyStorefrontClient", () => {
     expect(await negativeCache.get("dead.example")).not.toBeNull();
   });
 
-  it("paginates products.json until a short page and caps the page count", async () => {
-    const full = {
-      products: Array.from({ length: 250 }, (_, i) => ({
-        id: i,
-        title: `P${i}`,
-        variants: [{ price: "10.00" }],
-      })),
-    };
-    const { client, calls } = makeClient(
-      {
-        "/": html(fixture("shopify-home.html")),
-        "/products.json?limit=250&page=1": json(JSON.stringify(full)),
-        "/products.json?limit=250&page=2": json(JSON.stringify(full)),
-        "/products.json?limit=250&page=3": json(
-          JSON.stringify({ products: full.products.slice(0, 7) }),
-        ),
-      },
-      { maxProductPages: 4 },
-    );
-    const result = await client.inspect("big.example");
-    expect(result.products?.count).toBe(507);
-    expect(result.pagesFetched).toBe(3);
-    expect(calls.filter((c) => c.url.includes("products.json"))).toHaveLength(3);
+  it("paginates products.json until a short page, well past the old 1,000 cap", async () => {
+    const total = 1207;
+    const all = Array.from({ length: total }, (_, i) => ({
+      id: i + 1,
+      title: `P${i + 1}`,
+      variants: [{ price: "10.00" }],
+    }));
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/robots.txt") return new Response("");
+      if (url.pathname === "/") return new Response(fixture("shopify-home.html"));
+      if (url.pathname === "/products.json") {
+        const page = Number(url.searchParams.get("page") ?? 1);
+        const limit = Number(url.searchParams.get("limit") ?? 50);
+        return new Response(
+          JSON.stringify({ products: all.slice((page - 1) * limit, page * limit) }),
+        );
+      }
+      return new Response("", { status: 404 });
+    });
+    const client = new ShopifyStorefrontClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      rateLimiter: new PerKeyRateLimiter(0),
+    });
+    const result = await client.inspect("example-linen.com");
+    expect(result.products!.count).toBe(total);
+    expect(result.pagesFetched).toBe(5);
+    expect(result.productCountTruncated).toBe(false);
+
+    const capped = new ShopifyStorefrontClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      rateLimiter: new PerKeyRateLimiter(0),
+      maxProductPages: 2,
+    });
+    const cappedResult = await capped.inspect("example-linen.com");
+    expect(cappedResult.products!.count).toBe(500);
+    expect(cappedResult.productCountTruncated).toBe(true);
   });
 
   it("never sends more than one request per second per domain", async () => {

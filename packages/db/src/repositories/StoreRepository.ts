@@ -45,6 +45,12 @@ export type StoreSummary = {
   estimateConfidence: EstimateConfidence | null;
   /** Observable storefront signals (live rows). */
   productCount: number | null;
+  /** True when the catalogue crawl hit its page cap; productCount is a floor. */
+  productCountTruncated: boolean;
+  /** Raw <title> of the storefront (live rows); the display name is resolved separately. */
+  pageTitle: string | null;
+  /** Raw product_type values and tags, most common first (live rows). */
+  rawTags: string[];
   priceMin: number | null;
   priceMax: number | null;
   currency: string | null;

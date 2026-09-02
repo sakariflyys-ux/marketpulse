@@ -204,11 +204,7 @@ function ItemBody({ item }: { item: SavedItemData }) {
           </Link>
           <p className="truncate text-xs text-muted-foreground">
             {s.shopifyDomain}
-            {s.monthlyRevenue !== null
-              ? ` · ${formatCurrency(s.monthlyRevenue)}/mo`
-              : s.revenueEstimate !== null
-                ? ` · ~${formatCurrency(s.revenueEstimate)}/mo (est.)`
-                : ""}
+            {s.monthlyRevenue !== null ? ` · ${formatCurrency(s.monthlyRevenue)}/mo` : ""}
           </p>
           <div className="mt-1 flex flex-wrap gap-1">
             <Badge variant="secondary">{s.category}</Badge>
