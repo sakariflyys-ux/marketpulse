@@ -37,7 +37,7 @@ export class MockAdRepository implements AdRepository {
     const { limit } = params;
     const q = params.q?.trim() || undefined;
     const sort: AdListParams["sort"] =
-      params.sort === "relevance" && !q ? "engagement" : params.sort;
+      params.sort === "relevance" && !q ? this.defaultSort() : params.sort;
     const desc = params.order === "desc";
     const cmp = desc ? Prisma.sql`<` : Prisma.sql`>`;
     const dir = desc ? Prisma.sql`DESC` : Prisma.sql`ASC`;
