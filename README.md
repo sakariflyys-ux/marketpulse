@@ -31,45 +31,53 @@ pnpm web:dev                    # http://localhost:3000
 
 ## Scripts (repo root)
 
-| Command                  | Description                                |
-| ------------------------ | ------------------------------------------ |
-| `pnpm dev`               | All workspaces in dev mode (via Turbo)     |
-| `pnpm web:dev`           | Only the Next.js app                       |
-| `pnpm build`             | Build everything                           |
-| `pnpm lint`              | ESLint across workspaces                   |
-| `pnpm typecheck`         | `tsc --noEmit` across workspaces           |
-| `pnpm format`            | Prettier write (`format:check` to verify)  |
-| `pnpm db:up` / `db:down` | Start / stop Postgres via Docker Compose   |
-| `pnpm db:migrate`        | Create/apply migrations in development     |
-| `pnpm db:deploy`         | Apply pending migrations (production)      |
-| `pnpm db:reset`          | Drop, re-migrate and re-seed               |
-| `pnpm db:seed`           | Seed mock data (`SEED_SCALE=small\|large`) |
-| `pnpm db:studio`         | Prisma Studio                              |
-| `pnpm worker:dev`        | Run the worker daemon (pg-boss schedule)   |
-| `pnpm worker:run-once`   | Run the snapshot job once and exit         |
-| `pnpm mcp:dev`           | Run the MCP server over stdio              |
+| Command                     | Description                                  |
+| --------------------------- | -------------------------------------------- |
+| `pnpm dev`                  | All workspaces in dev mode (via Turbo)       |
+| `pnpm web:dev`              | Only the Next.js app                         |
+| `pnpm build`                | Build everything                             |
+| `pnpm lint`                 | ESLint across workspaces                     |
+| `pnpm typecheck`            | `tsc --noEmit` across workspaces             |
+| `pnpm format`               | Prettier write (`format:check` to verify)    |
+| `pnpm db:up` / `db:down`    | Start / stop Postgres via Docker Compose     |
+| `pnpm db:migrate`           | Create/apply migrations in development       |
+| `pnpm db:deploy`            | Apply pending migrations (production)        |
+| `pnpm db:reset`             | Drop, re-migrate and re-seed                 |
+| `pnpm db:seed`              | Seed mock data (`SEED_SCALE=small\|large`)   |
+| `pnpm db:studio`            | Prisma Studio                                |
+| `pnpm worker:dev`           | Run the worker daemon (pg-boss schedule)     |
+| `pnpm worker:run-once`      | Run the snapshot job once and exit           |
+| `pnpm worker:ingest-ads`    | Run the Meta Ad Library ingestion once       |
+| `pnpm worker:ingest-stores` | Run the Shopify storefront ingestion once    |
+| `pnpm db:seed:tracked`      | Seed the ingestion work list (27 DTC brands) |
+| `pnpm test`                 | vitest across workspaces (fixtures only)     |
+| `pnpm mcp:dev`              | Run the MCP server over stdio                |
 
 ## Environment variables
 
 One `.env` at the repo root is shared by every workspace (`apps/web` loads it from `next.config.ts`, the Node packages via `@synergilon/db/load-env`). See [`.env.example`](.env.example) for the full documented list.
 
-| Variable                                      | Required | Purpose                                                               |
-| --------------------------------------------- | -------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`                                | yes      | Postgres connection string                                            |
-| `SEED_SCALE`                                  | no       | `small` (default) or `large`                                          |
-| `AUTH_SECRET`                                 | prod     | Auth.js secret (`openssl rand -base64 32`)                            |
-| `AUTH_URL`, `AUTH_TRUST_HOST`                 | no       | Needed behind a proxy / non-localhost host                            |
-| `AUTH_GITHUB_ID` + `AUTH_GITHUB_SECRET`       | no       | Enables GitHub OAuth                                                  |
-| `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET`       | no       | Enables Google OAuth                                                  |
-| `AUTH_RESEND_KEY` + `AUTH_EMAIL_FROM`         | no       | Enables email magic links via Resend                                  |
-| `AUTH_DEV_LOGIN`                              | no       | `true` enables the local "Dev login" button (never in production)     |
-| `REDIS_URL`                                   | no       | Upstash/Redis for caching + rate limiting; no-ops when unset          |
-| `SNAPSHOT_CRON`, `SNAPSHOT_MAX_DRIFT_PCT`     | no       | Worker schedule (UTC cron, default `0 3 * * *`) and max drift (±5%)   |
-| `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS` | no       | Public API limit per IP (default 60 / 60s); needs Redis               |
-| `DATA_SOURCE`                                 | no       | `mock` (default) or `shopify` — selects the repository implementation |
-| `MCP_USER_ID`                                 | no       | Default user for MCP `save_to_folder`                                 |
-| `AI_PROVIDER`, `AI_MODEL`                     | no       | Chat vendor (`anthropic` default, or `openai`) and model override     |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`        | no       | Enables `/chat`; without a key the page shows a disabled state        |
+| Variable                                              | Required | Purpose                                                                  |
+| ----------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
+| `DATABASE_URL`                                        | yes      | Postgres connection string                                               |
+| `SEED_SCALE`                                          | no       | `small` (default) or `large`                                             |
+| `AUTH_SECRET`                                         | prod     | Auth.js secret (`openssl rand -base64 32`)                               |
+| `AUTH_URL`, `AUTH_TRUST_HOST`                         | no       | Needed behind a proxy / non-localhost host                               |
+| `AUTH_GITHUB_ID` + `AUTH_GITHUB_SECRET`               | no       | Enables GitHub OAuth                                                     |
+| `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET`               | no       | Enables Google OAuth                                                     |
+| `AUTH_RESEND_KEY` + `AUTH_EMAIL_FROM`                 | no       | Enables email magic links via Resend                                     |
+| `AUTH_DEV_LOGIN`                                      | no       | `true` enables the local "Dev login" button (never in production)        |
+| `REDIS_URL`                                           | no       | Upstash/Redis for caching + rate limiting; no-ops when unset             |
+| `SNAPSHOT_CRON`, `SNAPSHOT_MAX_DRIFT_PCT`             | no       | Worker schedule (UTC cron, default `0 3 * * *`) and max drift (±5%)      |
+| `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`         | no       | Public API limit per IP (default 60 / 60s); needs Redis                  |
+| `DATA_SOURCE`                                         | no       | `mock` (default, sample data) or `live` (ingested real data)             |
+| `META_APP_ID`, `META_APP_SECRET`, `META_ACCESS_TOKEN` | no       | Meta Ad Library access; without a token `ingest-ads` records FAILED runs |
+| `META_AD_COUNTRIES`, `META_GRAPH_VERSION`             | no       | Countries searched (default `FI,SE,DE`) and Graph version (`v26.0`)      |
+| `SCRAPER_USER_AGENT`, `SCRAPER_CONTACT_URL`           | no       | How the storefront scraper identifies itself                             |
+| `INGEST_ADS_CRON`, `INGEST_STORES_CRON`               | no       | Ingestion schedules (UTC; defaults 04:00 and 05:00 daily)                |
+| `MCP_USER_ID`                                         | no       | Default user for MCP `save_to_folder`                                    |
+| `AI_PROVIDER`, `AI_MODEL`                             | no       | Chat vendor (`anthropic` default, or `openai`) and model override        |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`                | no       | Enables `/chat`; without a key the page shows a disabled state           |
 
 Each auth provider turns on only when its full pair of variables is set.
 
@@ -94,11 +102,12 @@ pnpm db:seed          # SEED_SCALE=large for a realistic dataset
 
 ### Repository pattern
 
-`packages/db/src/repositories/` abstracts the **data source** (mock vs. real APIs), not the database:
+`packages/db/src/repositories/` abstracts the **data source** (sample vs. ingested real data), not the database:
 
 - `StoreRepository` / `AdRepository` — interfaces (`list`, `trending`, `getByDomain`, `categories`, `getById`).
-- `mock/Mock*Repository` — read the Faker-seeded Postgres tables. Raw SQL is used where Prisma can't express tsvector search, `ts_rank` ordering or window functions.
-- `index.ts` — the single swap point. `getRepositories()` builds the implementations selected by `DATA_SOURCE` and wraps them in the cache. Adding `ShopifyStoreRepository` later is a one-line change here.
+- `mock/Mock*Repository` — read rows with `source = 'mock'` (the Faker seed). Raw SQL is used where Prisma can't express tsvector search, `ts_rank` ordering or window functions.
+- `live/Live*Repository` — subclass the mock ones and read `source <> 'mock'` (rows written by ingestion). They also swap the trending metric to the observable product count and default the ad sort to longevity.
+- `index.ts` — the single swap point. `getRepositories()` builds the pair selected by `DATA_SOURCE` and wraps it in the cache.
 
 ### Pagination and search
 
@@ -176,6 +185,40 @@ docker compose --profile worker up -d
 
 Deployment itself is out of scope.
 
+## Data sources (`DATA_SOURCE=live`)
+
+Both sources are **ingested into our own Postgres** by the worker; the app never proxies to Meta or a storefront at request time, so pagination, full-text search and caching work unchanged. Every store and ad carries `source`, shown as a badge in the UI ("Sample data" / "Live · Meta Ad Library" / "Live · Storefront").
+
+### Meta Ad Library → `Ad`
+
+- **What it provides:** real ads (creative text, link title/caption, snapshot URL, page id/name, platforms, delivery start/stop, languages) for advertisers in the `TrackedEntity` work list (`kind = BRAND`: a Meta page id, or a brand name used as `search_terms`). EU transparency fields when present: `eu_total_reach`, target ages/gender/locations.
+- **What it does not provide:** spend, impressions or engagement for commercial ads. Those columns are **null** for live ads and render as "—". Impression/spend ranges exist only for political/issue ads and are kept on `impressionsLower`/`impressionsUpper`. No CTA button text either.
+- **Coverage:** commercial ads are returned only when delivered to the EU/UK, for one year; political/issue ads worldwide for seven years. `META_AD_COUNTRIES` must therefore be EU/UK codes.
+- **Access:** a Meta developer app plus an access token from an identity-confirmed account with `ads_read`; tokens expire (system-user tokens are the durable option). Rate limit is roughly 200 calls per hour per token; the client backs off with jitter on HTTP 429 and Graph codes 4/17/32/613 and honours `Retry-After`. A missing or rejected token is a typed error that fails the run visibly — never an empty result.
+- **Longevity:** ads are upserted on `adLibraryId`; `firstSeenAt` keeps the earliest sighting, `lastSeenAt` moves forward, and ads that disappear from the archive are marked `active = false` rather than deleted. "Days running" is the headline metric for live ads.
+- **Raw payloads** are stored on `Ad.raw` for debugging and re-mapping.
+
+### Shopify public storefront → `Store` / `StoreSnapshot`
+
+- **What it provides:** confirmation the domain is Shopify (`Shopify.theme`, `cdn.shopify.com` markers), theme name, installed apps by script fingerprint (`packages/db/src/sources/shopify/fingerprints.ts`, easy to extend), product count, price range, currency, top products from `/products.json`.
+- **What it does not provide:** revenue or traffic. `monthlyRevenue` / `monthlyTraffic` are **null** for live stores. `revenueEstimate` with `estimateConfidence` (`none` / `low` / `medium`) is an order-of-magnitude figure from catalogue size × typical price × an assumed sell-through band, labelled as an estimate everywhere with the method on hover. Trending for live stores ranks on the observable product-count change between snapshots, not on the estimate.
+- **Conduct:** `robots.txt` is fetched first and obeyed (longest-match rules for our agent or `*`), the User-Agent is `SCRAPER_USER_AGENT (+SCRAPER_CONTACT_URL)`, requests are limited to one per second per domain, and failed/non-Shopify domains are remembered on the tracked entity so they are skipped for seven days.
+- **Legal position:** only documented public endpoints are read (`/robots.txt`, `/`, `/products.json`); nothing behind a login, no Meta or Google property other than the Ad Library API.
+
+### Ingestion
+
+The worker runs `ingest-ads` (`INGEST_ADS_CRON`) and `ingest-stores` (`INGEST_STORES_CRON`) and writes an `IngestRun` row per execution (`RUNNING` → `SUCCESS` / `PARTIAL` / `FAILED`, with items seen/written and the error). A failed run leaves existing data in place. The `/ingest` page (signed-in users) lists recent runs and the tracked work list.
+
+```bash
+pnpm db:seed:tracked                     # 27 well-known DTC brands into TrackedEntity
+DATA_SOURCE=live pnpm web:dev            # live view (empty until ingestion runs)
+pnpm worker:ingest-stores                # refresh tracked storefronts once (no keys needed)
+META_ACCESS_TOKEN=... pnpm worker:ingest-ads   # pull tracked brands from the Ad Library once
+pnpm worker:dev                          # daemon: snapshot + both ingestion schedules
+```
+
+The `track_entity` chat/MCP tool adds a domain or brand to the work list and reports when the next scheduled run is.
+
 ## MCP server & chat
 
 Both use the **same tool implementations** in `packages/db/src/tools/index.ts` (Zod schema + `execute` over the repositories/services). The MCP server adapts them with `registerTool`; the chat route adapts them with the AI SDK's `tool()`. Add a tool once and both hosts pick it up.
@@ -224,9 +267,13 @@ Vercel AI SDK (`streamText` + `useChat`) with the same tools, up to 6 tool steps
 
 ## Roadmap
 
+Phase 8 — ad-account connection and campaign execution — depends on Meta Marketing API and Google Ads API approvals that are not in hand. Nothing in this codebase writes to any ad account.
+
 1. **Foundation & Auth** — monorepo, DB, seed, auth, app shell, dashboard ✅
 2. **Repositories & API** — repository pattern, FTS, cursor-paginated `/api/stores` + `/api/ads`, Redis cache ✅
 3. **Discovery UI** — `/discover`, `/ads`, `/store/[domain]` ✅
 4. **Folders & saved items** — nested folders, sidebar tree, drag-and-drop, `/saved` ✅
 5. **MCP server & `/chat`** — shared tools, stdio MCP server, AI SDK chat ✅
 6. **Worker, cache invalidation, rate limiting** — pg-boss daily snapshot drift, Redis-backed API limits ✅
+7. **Rebrand + real data** — Synergilon; Meta Ad Library and Shopify storefront ingestion, nullable honest metrics, `DATA_SOURCE=live` ✅
+8. Ad-account connection and campaign execution (needs Meta Marketing API / Google Ads API approvals)
